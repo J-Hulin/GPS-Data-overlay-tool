@@ -1,0 +1,1037 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GPX / FIT Overlay Tool</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600&display=swap');
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#0e0f11;--surface:#161719;--surface2:#1e2023;--border:#2a2c30;--accent:#f97316;--accent2:#fb923c;--text:#f0f0f0;--muted:#6b7280;--success:#22c55e;--danger:#ef4444;--info:#38bdf8}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);display:flex;flex-direction:column;align-items:center;padding:2rem 1rem 4rem;min-height:100vh;transition:background .2s,color .2s}
+body.light{--bg:#f3f4f6;--surface:#ffffff;--surface2:#f1f5f9;--border:#e2e8f0;--text:#111827;--muted:#64748b}
+body.light .drop-zone:hover,body.light .drop-zone.drag-over{background:#fff7ed}
+.container{width:100%;max-width:680px}
+h1{font-size:1.5rem;font-weight:600;letter-spacing:-0.02em;margin-bottom:4px}
+h1 span{color:var(--accent)}
+.subtitle{font-size:0.78rem;color:var(--muted);font-family:'DM Mono',monospace;margin-bottom:0}
+.topbar{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:1.5rem;gap:12px}
+.top-actions{display:flex;gap:6px;flex-shrink:0;margin-top:2px}
+.icon-btn{background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:5px 10px;font-size:.72rem;color:var(--muted);cursor:pointer;font-family:'DM Mono',monospace;transition:color .15s,border-color .15s;white-space:nowrap}
+.icon-btn:hover{color:var(--text);border-color:var(--muted)}
+.drop-zone{border:1.5px dashed var(--border);border-radius:12px;padding:2.5rem 1rem;text-align:center;cursor:pointer;transition:border-color .2s,background .2s;background:var(--surface);margin-bottom:1.5rem}
+.drop-zone:hover,.drop-zone.drag-over{border-color:var(--accent);background:#1a1008}
+.drop-zone input{display:none}
+.drop-icon{font-size:2rem;margin-bottom:.4rem}
+.drop-label{font-size:.95rem;font-weight:500}
+.drop-sub{font-size:.75rem;color:var(--muted);margin-top:4px;font-family:'DM Mono',monospace}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.25rem;margin-bottom:1rem}
+.card-title{font-size:.7rem;color:var(--accent);font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;margin-bottom:1rem;display:flex;align-items:center;gap:8px}
+.card-title::after{content:'';flex:1;height:1px;background:var(--border)}
+.card-title-actions{display:flex;align-items:center;gap:6px;margin-left:auto}
+.reset-btn{font-size:.62rem;font-family:'DM Mono',monospace;color:var(--muted);background:none;border:1px solid var(--border);border-radius:4px;padding:2px 7px;cursor:pointer;transition:color .15s,border-color .15s;white-space:nowrap}
+.reset-btn:hover{color:var(--text);border-color:var(--muted)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.grid4{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px}
+.field label{font-size:.68rem;color:var(--muted);font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.06em;display:block;margin-bottom:5px}
+.field input,.field select{width:100%;padding:7px 10px;font-size:.83rem;font-family:'DM Mono',monospace;background:var(--surface2);border:1px solid var(--border);border-radius:7px;color:var(--text);outline:none;transition:border-color .15s}
+.field input:focus,.field select:focus{border-color:var(--accent)}
+.field input[type=color]{padding:2px 4px;height:34px;cursor:pointer}
+.hint{font-size:.72rem;color:var(--muted);margin-top:8px;font-family:'DM Mono',monospace;line-height:1.7}
+.hint strong{color:var(--text)}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:1rem 0}
+.stat{background:var(--surface2);border-radius:8px;padding:9px 10px;border:1px solid var(--border);position:relative}
+.stat-label{font-size:.62rem;color:var(--muted);font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px}
+.stat-value{font-size:1.05rem;font-weight:600;font-family:'DM Mono',monospace;color:var(--accent)}
+.copy-btn{position:absolute;top:5px;right:5px;font-size:.58rem;font-family:'DM Mono',monospace;padding:2px 6px;border-radius:4px;border:1px solid var(--border);background:var(--surface);color:var(--muted);cursor:pointer;opacity:0;transition:opacity .15s,color .15s}
+.stat:hover .copy-btn{opacity:1}
+.copy-btn:hover{color:var(--text)}
+.preview-wrap{background:var(--surface2);border-radius:8px;border:1px solid var(--border);padding:10px;margin:8px 0}
+.preview-label{font-size:.62rem;color:var(--muted);font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px}
+canvas{display:block;width:100%}
+#gaugeWrap{background:var(--surface2);border-radius:8px;border:1px solid var(--border);padding:10px;margin:8px 0;display:none;text-align:center}
+#gaugeCanvas{display:inline-block}
+.dl-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.dl-btn{padding:10px 8px;font-size:.8rem;font-weight:500;font-family:'DM Sans',sans-serif;border-radius:8px;cursor:pointer;border:1px solid var(--border);background:var(--surface2);color:var(--text);transition:background .15s,transform .1s;text-align:center;line-height:1.4;width:100%}
+.dl-btn:hover{background:var(--surface);border-color:var(--muted)}
+.dl-btn:active{transform:scale(.98)}
+.dl-btn.primary{background:var(--accent);color:#000;border-color:var(--accent);font-weight:600}
+.dl-btn.primary:hover{background:var(--accent2)}
+.dl-btn.blue{background:#0c3048;color:var(--info);border-color:#164e6b}
+.dl-btn.blue:hover{background:#10405f}
+.dl-btn:disabled{opacity:.35;cursor:not-allowed;pointer-events:none}
+.dl-sub{font-size:.65rem;opacity:.75;margin-top:2px}
+.dl-all-btn{display:block;width:100%;margin-top:8px;padding:10px;font-size:.82rem;font-weight:600;border-radius:8px;cursor:pointer;border:1px solid var(--border);background:var(--surface2);color:var(--text);transition:background .15s;font-family:'DM Sans',sans-serif;text-align:center}
+.dl-all-btn:hover{background:var(--surface);border-color:var(--muted)}
+.dl-all-btn:disabled{opacity:.35;cursor:not-allowed;pointer-events:none}
+.status{font-size:.78rem;font-family:'DM Mono',monospace;margin-top:.75rem;min-height:18px;color:var(--muted)}
+.status.ok{color:var(--success)}
+.status.err{color:var(--danger)}
+.toggle-row{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.toggle-row label{font-size:.82rem;color:var(--muted);cursor:pointer}
+input[type=checkbox]{accent-color:var(--accent);width:14px;height:14px;cursor:pointer}
+/* How to use collapsible */
+.how-header{cursor:pointer;display:flex;align-items:center;justify-content:space-between;user-select:none}
+.how-arrow{font-size:.7rem;color:var(--muted);transition:transform .2s;margin-left:8px}
+.how-arrow.open{transform:rotate(180deg)}
+#howToBody{display:none;margin-top:12px}
+/* Sync modal */
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:200;align-items:center;justify-content:center}
+.modal-bg.open{display:flex}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:1.5rem;max-width:400px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+.modal h3{font-size:.95rem;font-weight:600;margin-bottom:.75rem}
+.modal .field{margin-bottom:8px}
+.modal-divider{border:none;border-top:1px solid var(--border);margin:12px 0}
+.modal-result{font-size:.85rem;font-family:'DM Mono',monospace;color:var(--accent);min-height:20px;margin:10px 0 4px;font-weight:600}
+.modal-btns{display:flex;gap:8px;margin-top:10px}
+.modal-btn{flex:1;padding:8px;border-radius:7px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:'DM Sans',sans-serif;font-size:.8rem;font-weight:500;cursor:pointer;transition:background .15s}
+.modal-btn:hover{background:var(--border)}
+.modal-btn.accent{background:var(--accent);color:#000;border-color:var(--accent);font-weight:600}
+.modal-btn.accent:hover{background:var(--accent2)}
+.modal-btn:disabled{opacity:.4;cursor:not-allowed}
+</style>
+</head>
+<body>
+<div class="container">
+
+<!-- Top bar -->
+<div class="topbar">
+  <div>
+    <h1>GPX / FIT <span>Overlay</span> Tool</h1>
+    <p class="subtitle">Speedometer · Route SVG · Dot SPL · Elevation SVG · Elevation SPL</p>
+  </div>
+  <div class="top-actions">
+    <button class="icon-btn" id="btnTheme">☀️ Light</button>
+  </div>
+</div>
+
+<!-- Sync Helper Modal -->
+<div class="modal-bg" id="syncModal">
+  <div class="modal">
+    <h3>⏱ GPS Sync Calibration Helper</h3>
+    <div class="hint" style="margin-top:0;margin-bottom:10px">Enter timecodes in <strong>HH:MM:SS:FF</strong> format (e.g. <code>00:00:08:00</code>). GPS elapsed time is seconds from when you started the activity.</div>
+    <div class="field"><label>Event 1 — Video timecode (HH:MM:SS:FF)</label><input type="text" id="sv1" placeholder="00:00:08:00" maxlength="11"></div>
+    <div class="field"><label>Event 1 — GPS elapsed time (HH:MM:SS:FF)</label><input type="text" id="sg1" placeholder="00:00:00:00" maxlength="11"></div>
+    <hr class="modal-divider">
+    <div class="hint" style="margin-top:0;margin-bottom:8px"><strong>Optional:</strong> second sync event late in the clip for drift correction.</div>
+    <div class="field"><label>Event 2 — Video timecode (HH:MM:SS:FF)</label><input type="text" id="sv2" placeholder="00:09:04:00" maxlength="11"></div>
+    <div class="field"><label>Event 2 — GPS elapsed time (HH:MM:SS:FF)</label><input type="text" id="sg2" placeholder="00:09:10:00" maxlength="11"></div>
+    <div class="modal-result" id="syncResult">—</div>
+    <div class="modal-btns">
+      <button class="modal-btn" id="syncCalc">Calculate</button>
+      <button class="modal-btn accent" id="syncApply" disabled>Apply</button>
+      <button class="modal-btn" id="syncClose">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Drop zone -->
+<div class="drop-zone" id="dropZone">
+  <input type="file" id="fileInput" accept=".gpx,.fit">
+  <div class="drop-icon">📂</div>
+  <div class="drop-label">Drop your GPX or FIT file here</div>
+  <div class="drop-sub">or click to browse · .gpx and .fit supported</div>
+</div>
+
+<!-- Video & GPS settings -->
+<div class="card">
+  <div class="card-title">Video &amp; GPS settings
+    <div class="card-title-actions">
+      <button class="reset-btn" id="resetVideo">↺ Reset</button>
+    </div>
+  </div>
+  <div class="grid3">
+    <div class="field">
+      <label>Frame rate</label>
+      <select id="fps">
+        <option value="23.976">23.976</option>
+        <option value="24">24</option>
+        <option value="25">25</option>
+        <option value="29.97" selected>29.97</option>
+        <option value="30">30</option>
+        <option value="59.94">59.94</option>
+        <option value="60">60</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Speed unit</label>
+      <select id="unit"><option value="mph" selected>MPH</option><option value="kph">KPH</option></select>
+    </div>
+    <div class="field">
+      <label>Smoothing window (0–20)</label>
+      <input type="number" id="smooth" value="3" step="1" min="0" max="20">
+    </div>
+  </div>
+  <div class="grid3" style="margin-top:10px">
+    <div class="field">
+      <label>GPS offset (seconds)</label>
+      <input type="number" id="offset" value="0" step="0.5">
+    </div>
+    <div class="field">
+      <label>Clock drift factor</label>
+      <input type="number" id="driftFactor" value="1.0" step="0.0001" min="0.9" max="1.1">
+      <button class="reset-btn" id="btnSyncHelper" style="margin-top:6px;width:100%;text-align:center;border-color:var(--accent);color:var(--accent)">⏱ Sync Helper</button>
+    </div>
+    <div class="field">
+      <label>Max gauge speed (auto)</label>
+      <input type="number" id="maxSpeed" value="9" step="0.5" min="0.5" readonly style="opacity:0.6;cursor:default;">
+    </div>
+  </div>
+  <div class="hint">
+    <strong>GPS offset</strong> = video timecode in seconds at the moment you pressed start on your watch. Negative if watch started before the camera.<br><br>
+    <strong>Clock drift factor</strong> = corrects the GPS clock running at a slightly different rate than the camera clock. Even a 0.1% difference causes ~6 seconds of drift over 10 minutes — this is the most common cause of sync that's perfect at the start but gets progressively worse.<br><br>
+    <strong>To calibrate:</strong> find a <em>second</em> sync event late in the clip. Note its video timecode and GPS elapsed time, then use the <strong>⏱ Sync Helper</strong> button to calculate both values automatically, or use:<br>
+    <strong>factor = (videoTimecode − offset) ÷ gpsElapsed</strong><br>
+    Example: second sync at video 9:04 (544s), GPS elapsed 9:10 (550s), offset = 5s → factor = (544 − 5) ÷ 550 = <strong>0.9800</strong>
+  </div>
+</div>
+
+<!-- Route SVG style -->
+<div class="card">
+  <div class="card-title">Route SVG style
+    <div class="card-title-actions">
+      <button class="reset-btn" id="resetRoute">↺ Reset</button>
+    </div>
+  </div>
+  <div class="hint" style="margin-top:0;margin-bottom:10px">Auto-sizes to fill <strong>1920×1080</strong> based on your GPS track's aspect ratio.</div>
+  <div class="grid4" style="margin-bottom:10px">
+    <div class="field"><label>Track width</label><input type="number" id="trackW" value="4" step="1" min="1"></div>
+    <div class="field"><label>Dot radius</label><input type="number" id="dotR" value="8" step="1" min="2"></div>
+    <div class="field"><label>Shadow width</label><input type="number" id="shadowW" value="5" step="1" min="0"></div>
+    <div class="field"><label>Shadow offset</label><input type="number" id="shadowOffset" value="5" step="1" min="0"></div>
+  </div>
+  <div class="grid2">
+    <div class="field"><label>Track color</label><input type="color" id="trackColor" value="#ff6600"></div>
+    <div class="field"><label>Shadow color</label><input type="color" id="shadowColor" value="#000000"></div>
+  </div>
+</div>
+
+<!-- Elevation SVG style -->
+<div class="card">
+  <div class="card-title">Elevation SVG style
+    <div class="card-title-actions">
+      <button class="reset-btn" id="resetElev">↺ Reset</button>
+    </div>
+  </div>
+  <div class="toggle-row">
+    <input type="checkbox" id="showElev" checked>
+    <label for="showElev">Include elevation outputs</label>
+  </div>
+  <div id="elevOptions">
+    <div class="grid4" style="margin-bottom:10px">
+      <div class="field"><label>Width px</label><input type="number" id="elevW" value="1920" step="10" min="100"></div>
+      <div class="field"><label>Height px</label><input type="number" id="elevH" value="300" step="10" min="50"></div>
+      <div class="field"><label>Line width</label><input type="number" id="elevLineW" value="2" step="1" min="1"></div>
+      <div class="field"><label>Shadow width</label><input type="number" id="elevShadowW" value="5" step="1" min="0"></div>
+    </div>
+    <div class="grid4">
+      <div class="field"><label>Line color</label><input type="color" id="elevColor" value="#38bdf8"></div>
+      <div class="field"><label>Shadow color</label><input type="color" id="elevShadowColor" value="#000000"></div>
+      <div class="field"><label>Shadow offset</label><input type="number" id="elevShadowOffset" value="5" step="1" min="0"></div>
+      <div class="field"><label>Fill</label>
+        <select id="elevFill"><option value="1">Yes</option><option value="0">No</option></select>
+      </div>
+    </div>
+    <div class="grid2" style="margin-top:10px">
+      <div class="field"><label>Fill color</label><input type="color" id="elevFillColor" value="#1a3a4a"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Stats & previews -->
+<div id="statsWrap" style="display:none">
+  <div class="stats">
+    <div class="stat">
+      <div class="stat-label">Points</div>
+      <div class="stat-value" id="statPts">-</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Duration</div>
+      <div class="stat-value" id="statDur">-</div>
+      <button class="copy-btn" id="copyDur" title="Copy duration">copy</button>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Distance</div>
+      <div class="stat-value" id="statDist">-</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Peak speed</div>
+      <div class="stat-value" id="statSpd">-</div>
+    </div>
+  </div>
+  <div class="preview-wrap">
+    <div class="preview-label">Route preview</div>
+    <canvas id="routeCanvas" height="180"></canvas>
+  </div>
+  <div class="preview-wrap">
+    <div class="preview-label">Speed curve</div>
+    <canvas id="speedCanvas" height="60"></canvas>
+  </div>
+  <div class="preview-wrap" id="elevPreviewWrap" style="display:none">
+    <div class="preview-label">Elevation profile</div>
+    <canvas id="elevCanvas" height="80"></canvas>
+  </div>
+</div>
+
+<!-- Downloads -->
+<div class="card">
+  <div class="card-title">Download outputs</div>
+  <div class="dl-grid">
+    <button class="dl-btn primary" id="btnSetting" disabled>⚙ Speedometer<div class="dl-sub">.setting file</div></button>
+    <button class="dl-btn primary" id="btnSpeedSPL" disabled>📄 Speed SPL<div class="dl-sub">ActiveSpeed keyframes</div></button>
+    <button class="dl-btn primary" id="btnRouteSVG" disabled>🗺 Route SVG<div class="dl-sub">map path</div></button>
+    <button class="dl-btn primary" id="btnRouteSPL" disabled>📍 Route Dot SPL<div class="dl-sub">dot animation</div></button>
+    <button class="dl-btn blue" id="btnElevSVG" disabled>📈 Elevation SVG<div class="dl-sub">graph</div></button>
+    <button class="dl-btn blue" id="btnElevSPL" disabled>📈 Elevation SPL<div class="dl-sub">progress anim</div></button>
+  </div>
+  <button class="dl-all-btn" id="btnDownloadAll" disabled>⬇ Download All Files</button>
+  <div class="status" id="status"></div>
+</div>
+
+<!-- How to use (collapsible) -->
+<div class="card">
+  <div class="card-title how-header" id="howHeader">
+    How to use
+    <span class="how-arrow" id="howArrow">▾</span>
+  </div>
+  <div id="howToBody">
+    <div class="hint" style="font-size:.82rem;line-height:1.85">
+
+      <strong style="font-size:.92rem;color:var(--text)">① Load your file</strong><br>
+      Drop a <strong>.fit</strong> (COROS, Garmin, Wahoo, etc.) or <strong>.gpx</strong> file onto the drop zone. Everything is processed entirely in your browser — nothing is uploaded anywhere. Once loaded you'll see your point count, duration, total distance, and peak speed, plus a route preview, speedometer preview, speed curve, and elevation profile (if your file contains elevation data).<br><br>
+
+      <strong style="font-size:.92rem;color:var(--text)">② Configure your settings</strong><br>
+      • <strong>Frame Rate</strong> — Match this exactly to your video's frame rate. Even a small mismatch (e.g. 30 instead of 29.97) will cause drift over a long clip.<br>
+      • <strong>Speed Unit</strong> — Sets both the stats display and the unit label on the speedometer gauge.<br>
+      • <strong>Smoothing</strong> — Averages the speed curve over a rolling window to reduce GPS noise. 3–5 is a good starting point.<br>
+      • <strong>GPS Offset</strong> — The video timecode in seconds at the moment you pressed start on your watch. Scrub your footage to find the exact frame where the watch transitions from the pre-activity screen to recording — that timecode is your offset. Use a negative value if you started your watch before you hit record on the camera. Use the <strong>⏱ Sync Helper</strong> to calculate this automatically.<br>
+      • <strong>Clock Drift Factor</strong> — If the first sync point looks correct but things drift progressively later in the clip, the GPS clock and camera clock are running at slightly different rates. Use the <strong>⏱ Sync Helper</strong> with a second sync event to calculate the drift factor automatically.<br>
+      • <strong>Max Gauge Speed</strong> — Auto-filled from your GPS peak speed rounded up to the nearest 0.5.<br>
+      • <strong>Track / Elevation style settings</strong> — Adjust track width, dot radius, shadow width, shadow offset, and colors. Each card has a <strong>↺ Reset</strong> button to restore defaults.<br><br>
+
+      <strong style="font-size:.92rem;color:var(--text)">③ Note your duration</strong><br>
+      Before downloading, hover over the <strong>Duration</strong> stat and click <strong>copy</strong> to copy the timecode (<code>HH:MM:SS:FF</code>). You will need this when creating your Fusion compositions in DaVinci Resolve.<br><br>
+
+      <strong style="font-size:.92rem;color:var(--text)">④ Speedometer — DaVinci Resolve setup</strong><br>
+      <strong>Step 1 — Create the Fusion composition:</strong> In DaVinci Resolve, go to the <em>Edit</em> tab. In the Media Pool, right-click and select <strong>New Fusion Composition</strong>. Paste the duration you copied from the tool, select your video's frame rate, and click <strong>Create</strong>. Drag it onto your timeline. Right-click it and select <strong>Open in Fusion Page</strong>.<br><br>
+      <strong>Step 2 — Import the .setting file:</strong> If you can't see your nodes, go to the top menu and click <strong>Nodes</strong>. Find the <strong>Speed_Overlay.setting</strong> file you downloaded and drag and drop it directly into the Fusion node graph. Connect the gray output box on the SpeedOverlay group to your <strong>MediaOut</strong> node.<br><br>
+      <strong>Step 3 — Animate the speedometer:</strong> Double-click the <strong>SpeedOverlay</strong> group, then double-click the <strong>CurrentSpeed</strong> node. In the Inspector (top-right — if hidden, click the wrench/brush tab), go to <strong>Controls → ActiveSpeed</strong> slider. Right-click <strong>ActiveSpeed</strong> and select <strong>Animate</strong>. Open the <strong>Spline</strong> editor, select <strong>ActiveSpeed</strong> in the list, right-click the line and select <strong>Import Spline</strong>. Navigate to <strong>active_speed.spl</strong> and select it. Click <strong>Zoom to Fit</strong> to confirm. Your speedometer is now animated.<br><br>
+
+      <strong style="font-size:.92rem;color:var(--text)">⑤ Route &amp; Elevation SVG — DaVinci Resolve setup</strong><br>
+      The route SVG and elevation SVG follow the exact same steps.<br><br>
+      <strong>Step 1 — Create the Fusion composition:</strong> In the Media Pool, right-click → <strong>New Fusion Composition</strong> with the same duration and frame rate. Drag to timeline, right-click → <strong>Open in Fusion Page</strong>.<br><br>
+      <strong>Step 2 — Import the SVG:</strong> At the very top of Fusion, go to <strong>File → Import → SVG</strong>. Select your <strong>route.svg</strong> or <strong>elevation.svg</strong>. Keep the default image size. Double-click the node group that appears and connect its output to <strong>MediaOut</strong>.<br><br>
+      <strong>Step 3 — Publish MainPath:</strong> Double-click the <strong>MainPath</strong> node. At the bottom of the Inspector, right-click <em>"Right-click here for shape animation"</em> and select <strong>Publish</strong>.<br><br>
+      <strong>Step 4 — Animate MainDot:</strong> Double-click <strong>MainDot</strong>. In the Inspector, right-click <strong>Center</strong> → <strong>Animate</strong>. Go to the <strong>Modifiers</strong> tab, right-click <em>"Right-click here for shape animation"</em> → <strong>Connect To → MainPath → Polyline Value</strong>. The dot snaps to the start of the path.<br><br>
+      <strong>Step 5 — Link OutlineDot:</strong> Double-click <strong>OutlineDot</strong>. Right-click <strong>Center</strong> → <strong>Expression</strong>. Clear the box and type exactly: <code>MainDot.Center</code> (case-sensitive). This makes the shadow dot follow the main dot.<br><br>
+      <strong>Step 6 — Import the SPL:</strong> Open the <strong>Spline</strong> editor. Select the <strong>MainDot Center</strong> spline, right-click the line → <strong>Import Spline</strong>. Select <strong>route_dot.spl</strong> or <strong>elevation_progress.spl</strong>. Click <strong>Zoom to Fit</strong>. Your dot now animates along the path.<br><br>
+
+      <strong style="font-size:.92rem;color:var(--text)">⑥ Tips</strong><br>
+      • All outputs share the same GPS offset and drift factor — everything stays in sync automatically.<br>
+      • If your GPS file has no embedded speed data, speed is derived from position deltas — smoothing helps reduce noise.<br>
+      • Re-download any output after changing settings — everything regenerates live.<br>
+      • Use <strong>⬇ Download All Files</strong> to grab everything in one click.<br>
+      • Use <strong>⏱ Sync Helper</strong> to calculate offset and drift factor without doing the math manually.
+    </div>
+  </div>
+</div>
+
+</div><!-- /container -->
+<script>
+// ── State ─────────────────────────────────────────────────────────────────────
+var rawPoints=[], speedData=[], totalDistM=0, currentFilename='';
+var btnIds=['btnSetting','btnSpeedSPL','btnRouteSVG','btnRouteSPL','btnElevSVG','btnElevSPL'];
+var syncCalcResult={offset:null,drift:null};
+
+// ── Defaults for reset ────────────────────────────────────────────────────────
+var DEF_VIDEO={fps:'29.97',unit:'mph',smooth:'3',offset:'0',driftFactor:'1.0'};
+var DEF_ROUTE={trackW:'4',dotR:'8',shadowW:'5',shadowOffset:'5',trackColor:'#ff6600',shadowColor:'#000000'};
+var DEF_ELEV={elevW:'1920',elevH:'300',elevLineW:'2',elevShadowW:'5',elevColor:'#38bdf8',elevShadowColor:'#000000',elevShadowOffset:'5',elevFill:'1',elevFillColor:'#1a3a4a'};
+
+function applyDefaults(defs){ Object.keys(defs).forEach(function(id){var el=document.getElementById(id);if(el)el.value=defs[id];}); }
+
+// ── Theme ─────────────────────────────────────────────────────────────────────
+var themeBtn=document.getElementById('btnTheme');
+themeBtn.addEventListener('click',function(){
+  document.body.classList.toggle('light');
+  themeBtn.textContent=document.body.classList.contains('light')?'🌙 Dark':'☀️ Light';
+});
+
+// ── How to use collapse ───────────────────────────────────────────────────────
+document.getElementById('howHeader').addEventListener('click',function(){
+  var body=document.getElementById('howToBody'), arrow=document.getElementById('howArrow');
+  var open=body.style.display==='block';
+  body.style.display=open?'none':'block';
+  arrow.classList.toggle('open',!open);
+});
+
+// ── Copy duration ─────────────────────────────────────────────────────────────
+document.getElementById('copyDur').addEventListener('click',function(){
+  var dur=document.getElementById('statDur').textContent;
+  if(!navigator.clipboard){return;}
+  navigator.clipboard.writeText(dur).then(function(){
+    var btn=document.getElementById('copyDur');
+    btn.textContent='copied!'; btn.style.color='var(--success)';
+    setTimeout(function(){btn.textContent='copy';btn.style.color='';},1600);
+  });
+});
+
+// ── Sync helper modal ─────────────────────────────────────────────────────────
+document.getElementById('btnSyncHelper').addEventListener('click',function(){document.getElementById('syncModal').classList.add('open');});
+document.getElementById('syncClose').addEventListener('click',function(){document.getElementById('syncModal').classList.remove('open');});
+document.getElementById('syncModal').addEventListener('click',function(e){if(e.target===this)this.classList.remove('open');});
+
+// Auto-format timecode inputs as user types
+['sv1','sg1','sv2','sg2'].forEach(function(id){
+  document.getElementById(id).addEventListener('input',function(){
+    var v=this.value.replace(/[^0-9]/g,'');
+    var out='';
+    for(var i=0;i<v.length&&i<8;i++){
+      if(i===2||i===4||i===6) out+=':';
+      out+=v[i];
+    }
+    this.value=out;
+  });
+});
+
+function tcToSec(tc,fps){
+  // Parse HH:MM:SS:FF — also accept bare seconds like "8" or "8.5"
+  if(!tc||tc.trim()==='')return NaN;
+  var parts=tc.trim().split(':');
+  if(parts.length===1){var n=parseFloat(parts[0]);return isNaN(n)?NaN:n;}
+  if(parts.length===4){
+    var h=parseInt(parts[0])||0,m=parseInt(parts[1])||0,s=parseInt(parts[2])||0,f=parseInt(parts[3])||0;
+    return h*3600+m*60+s+f/(fps||29.97);
+  }
+  if(parts.length===3){var h=parseInt(parts[0])||0,m=parseInt(parts[1])||0,s=parseFloat(parts[2])||0;return h*3600+m*60+s;}
+  return NaN;
+}
+
+document.getElementById('syncCalc').addEventListener('click',function(){
+  var fps=parseFloat(document.getElementById('fps').value)||29.97;
+  var v1=tcToSec(document.getElementById('sv1').value,fps);
+  var g1=tcToSec(document.getElementById('sg1').value,fps);
+  var v2=tcToSec(document.getElementById('sv2').value,fps);
+  var g2=tcToSec(document.getElementById('sg2').value,fps);
+  var res=document.getElementById('syncResult');
+  var applyBtn=document.getElementById('syncApply');
+  if(isNaN(v1)||isNaN(g1)){res.textContent='Enter event 1 values';res.style.color='var(--danger)';applyBtn.disabled=true;return;}
+  var offset=Math.round((v1-g1)*100)/100;
+  var drift=1.0;
+  if(!isNaN(v2)&&!isNaN(g2)&&g2!==g1){
+    drift=Math.round(((v2-offset)/g2)*100000)/100000;
+  }
+  syncCalcResult={offset:offset,drift:drift};
+  var msg='GPS Offset: '+offset+'s';
+  if(!isNaN(v2)&&!isNaN(g2)&&g2!==g1) msg+='   Drift: '+drift;
+  res.textContent=msg; res.style.color='var(--accent)';
+  applyBtn.disabled=false;
+});
+
+document.getElementById('syncApply').addEventListener('click',function(){
+  document.getElementById('offset').value=syncCalcResult.offset;
+  document.getElementById('driftFactor').value=syncCalcResult.drift;
+  document.getElementById('syncModal').classList.remove('open');
+  if(rawPoints.length) reprocess();
+  setStatus('Sync applied — offset: '+syncCalcResult.offset+'s, drift: '+syncCalcResult.drift,'ok');
+});
+
+// ── Reset buttons ─────────────────────────────────────────────────────────────
+document.getElementById('resetVideo').addEventListener('click',function(){applyDefaults(DEF_VIDEO);if(rawPoints.length)reprocess();});
+document.getElementById('resetRoute').addEventListener('click',function(){applyDefaults(DEF_ROUTE);});
+document.getElementById('resetElev').addEventListener('click',function(){applyDefaults(DEF_ELEV);});
+
+// ── Drop zone & file input ────────────────────────────────────────────────────
+var dropZone=document.getElementById('dropZone');
+var fileInput=document.getElementById('fileInput');
+var statusEl=document.getElementById('status');
+dropZone.addEventListener('click',function(){fileInput.click();});
+dropZone.addEventListener('dragover',function(e){e.preventDefault();dropZone.classList.add('drag-over');});
+dropZone.addEventListener('dragleave',function(){dropZone.classList.remove('drag-over');});
+dropZone.addEventListener('drop',function(e){e.preventDefault();dropZone.classList.remove('drag-over');if(e.dataTransfer.files[0])handleFile(e.dataTransfer.files[0]);});
+fileInput.addEventListener('change',function(){if(fileInput.files[0])handleFile(fileInput.files[0]);});
+
+['fps','unit','smooth','offset','driftFactor'].forEach(function(id){
+  document.getElementById(id).addEventListener('change',function(){if(rawPoints.length)reprocess();});
+});
+document.getElementById('showElev').addEventListener('change',function(){
+  document.getElementById('elevOptions').style.display=this.checked?'':'none';
+});
+
+function setStatus(msg,cls){statusEl.textContent=msg;statusEl.className='status'+(cls?' '+cls:'');}
+function setEnabled(on){btnIds.forEach(function(id){document.getElementById(id).disabled=!on;});document.getElementById('btnDownloadAll').disabled=!on;}
+
+// ── File handling ─────────────────────────────────────────────────────────────
+function handleFile(file){
+  var name=file.name.toLowerCase();
+  if(!name.endsWith('.gpx')&&!name.endsWith('.fit')){setStatus('Please upload a .gpx or .fit file','err');return;}
+  currentFilename=file.name.replace(/\.[^.]+$/,'');
+  setStatus('Reading '+file.name+'...');
+  var reader=new FileReader();
+  if(name.endsWith('.fit')){
+    reader.onload=function(e){parseFIT(e.target.result,file.name);};
+    reader.readAsArrayBuffer(file);
+  } else {
+    reader.onload=function(e){parseGPX(e.target.result,file.name);};
+    reader.readAsText(file);
+  }
+}
+
+// ── FIT parser ────────────────────────────────────────────────────────────────
+function parseFIT(buffer,name){
+  try{
+    var bytes=new Uint8Array(buffer),definitions={},points=[],lastTimestamp=undefined;
+    var pos=bytes[0],dataEnd=bytes.length-2;
+    function u32(p){return bytes[p]|(bytes[p+1]<<8)|(bytes[p+2]<<16)|(bytes[p+3]<<24);}
+    function u16(p){return bytes[p]|(bytes[p+1]<<8);}
+    function readFields(def){
+      var sp=pos,rec={};
+      for(var f=0;f<def.fields.length;f++){
+        var fd=def.fields[f],val;
+        if(fd.size===4)val=fd.arch===0?u32(pos):((bytes[pos]<<24)|(bytes[pos+1]<<16)|(bytes[pos+2]<<8)|bytes[pos+3]);
+        else if(fd.size===2)val=fd.arch===0?u16(pos):((bytes[pos]<<8)|bytes[pos+1]);
+        else if(fd.size===1)val=bytes[pos];
+        else{pos+=fd.size;continue;}
+        rec[fd.num]=val; pos+=fd.size;
+      }
+      pos=sp+def.dataSize; return rec;
+    }
+    var FIT_EPOCH=631065600;
+    function tryEmit(rec,ts){
+      var lat=rec[0],lon=rec[1],alt=rec[2],spd=rec[6]!==undefined?rec[6]:rec[136];
+      if(ts!==undefined&&ts!==0xFFFFFFFF&&lat!==undefined&&lat!==0x7FFFFFFF&&lon!==undefined&&lon!==0x7FFFFFFF){
+        points.push({time:(ts+FIT_EPOCH)*1000,lat:lat*(180/Math.pow(2,31)),lon:lon*(180/Math.pow(2,31)),
+          ele:(alt!==undefined&&alt!==0xFFFF)?(alt/5-500):null,
+          speed:(spd!==undefined&&spd!==0xFFFF&&spd!==0xFFFFFFFF)?spd/1000:null});
+      }
+    }
+    while(pos<dataEnd){
+      var h=bytes[pos++];
+      if(h&0x80){
+        var lt=(h>>5)&0x03,to=h&0x1F,def=definitions[lt];
+        if(!def)continue;
+        var rts;
+        if(lastTimestamp!==undefined){rts=(lastTimestamp&0xFFFFFFE0)|to;if(rts<lastTimestamp)rts+=32;lastTimestamp=rts;}
+        var rec=readFields(def);
+        if(def.globalMsgNum===20&&rts!==undefined)tryEmit(rec,rts);
+        continue;
+      }
+      var mt=(h>>6)&0x03,lmn=h&0x0F;
+      if(mt===1||mt===3){
+        pos++;var arch=bytes[pos++];
+        var gmn=arch===0?u16(pos):(bytes[pos]<<8)|bytes[pos+1]; pos+=2;
+        var nf=bytes[pos++],flds=[],ds=0;
+        for(var f=0;f<nf;f++){flds.push({num:bytes[pos++],size:bytes[pos++],arch:arch});bytes[pos++];ds+=flds[flds.length-1].size;}
+        if(mt===3){var nd=bytes[pos++];for(var d=0;d<nd;d++){ds+=bytes[pos+1];pos+=3;}}
+        definitions[lmn]={globalMsgNum:gmn,fields:flds,dataSize:ds,arch:arch};
+      } else {
+        var def=definitions[lmn];
+        if(!def){pos++;continue;}
+        var rec=readFields(def);
+        if(def.globalMsgNum===20){var ts=rec[253];if(ts!==undefined&&ts!==0xFFFFFFFF)lastTimestamp=ts;tryEmit(rec,ts);}
+      }
+    }
+    if(points.length<2){setStatus('No GPS track points found in FIT file','err');return;}
+    points.sort(function(a,b){return a.time-b.time;});
+    rawPoints=points; totalDistM=0;
+    for(var i=1;i<rawPoints.length;i++)totalDistM+=haversine(rawPoints[i-1].lat,rawPoints[i-1].lon,rawPoints[i].lat,rawPoints[i].lon);
+    dropZone.querySelector('.drop-label').textContent=name;
+    dropZone.querySelector('.drop-sub').textContent=rawPoints.length+' track points loaded';
+    reprocess();
+  }catch(e){console.error(e);setStatus('FIT parse error: '+e.message,'err');}
+}
+
+// ── GPX speed extension helper ────────────────────────────────────────────────
+function getSpeedFromPoint(pt){
+  var kids=pt.childNodes;
+  for(var i=0;i<kids.length;i++){if(kids[i].localName==='speed'){var v=parseFloat(kids[i].textContent);if(!isNaN(v))return v;}}
+  for(var i=0;i<kids.length;i++){
+    if(kids[i].localName==='extensions'){
+      var all=kids[i].getElementsByTagName('*');
+      for(var j=0;j<all.length;j++){
+        if(all[j].localName.toLowerCase()==='speed'){var v=parseFloat(all[j].textContent);if(!isNaN(v)&&v>=0)return v;}
+      }
+    }
+  }
+  return null;
+}
+
+// ── GPX parser ────────────────────────────────────────────────────────────────
+function parseGPX(text,name){
+  try{
+    var parser=new DOMParser(),doc=parser.parseFromString(text,'application/xml');
+    if(doc.querySelector('parsererror')){setStatus('XML error in GPX file','err');return;}
+    var trkpts=doc.querySelectorAll('trkpt');
+    if(!trkpts.length){setStatus('No track points found','err');return;}
+    rawPoints=[];
+    for(var i=0;i<trkpts.length;i++){
+      var pt=trkpts[i],timeEl=pt.querySelector('time'),eleEl=pt.querySelector('ele');
+      var lat=parseFloat(pt.getAttribute('lat')),lon=parseFloat(pt.getAttribute('lon'));
+      var t=timeEl?new Date(timeEl.textContent).getTime():null;
+      if(t&&!isNaN(t)&&!isNaN(lat)&&!isNaN(lon))
+        rawPoints.push({time:t,lat:lat,lon:lon,ele:eleEl?parseFloat(eleEl.textContent):null,speed:getSpeedFromPoint(pt)});
+    }
+    rawPoints.sort(function(a,b){return a.time-b.time;});
+    if(rawPoints.length<2){setStatus('Not enough valid points','err');return;}
+    totalDistM=0;
+    for(var i=1;i<rawPoints.length;i++)totalDistM+=haversine(rawPoints[i-1].lat,rawPoints[i-1].lon,rawPoints[i].lat,rawPoints[i].lon);
+    dropZone.querySelector('.drop-label').textContent=name;
+    dropZone.querySelector('.drop-sub').textContent=rawPoints.length+' track points loaded';
+    reprocess();
+  }catch(e){console.error(e);setStatus('Error: '+e.message,'err');}
+}
+
+// ── Core math ─────────────────────────────────────────────────────────────────
+function haversine(la1,lo1,la2,lo2){
+  var R=6371000,dL=(la2-la1)*Math.PI/180,dO=(lo2-lo1)*Math.PI/180;
+  var a=Math.sin(dL/2)*Math.sin(dL/2)+Math.cos(la1*Math.PI/180)*Math.cos(la2*Math.PI/180)*Math.sin(dO/2)*Math.sin(dO/2);
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
+function computeSpeeds(pts,unit){
+  var result=[];
+  for(var i=0;i<pts.length;i++){
+    var p=pts[i],spd=(p.speed!==null&&!isNaN(p.speed))?p.speed:null;
+    if(spd===null){if(i<pts.length-1){var dt=(pts[i+1].time-p.time)/1000;spd=dt>0?haversine(p.lat,p.lon,pts[i+1].lat,pts[i+1].lon)/dt:0;}else spd=result.length?result[result.length-1].rawSpd:0;}
+    result.push({time:p.time,rawSpd:spd,spd:Math.max(0,unit==='mph'?spd*2.23694:spd*3.6)});
+  }
+  return result;
+}
+// ── Smoothing ─────────────────────────────────────────────────────────────────
+
+// Compute Savitzky-Golay convolution coefficients for a given half-window and
+// polynomial degree using the least-squares normal equations. Returns an array
+// of 2*m+1 weights centred on index m.
+function sgCoeffs(m, degree) {
+  var n = 2 * m + 1;
+  // Build Vandermonde matrix A (n x (degree+1)) for x = -m..m
+  var A = [];
+  for (var i = 0; i < n; i++) {
+    var row = [], x = i - m;
+    for (var d = 0; d <= degree; d++) row.push(Math.pow(x, d));
+    A.push(row);
+  }
+  // Compute ATA and ATe0 (first basis vector — we want the smoothed value, coeff 0)
+  var cols = degree + 1;
+  var ATA = [];
+  for (var r = 0; r < cols; r++) {
+    ATA.push([]);
+    for (var c = 0; c < cols; c++) {
+      var s = 0;
+      for (var i = 0; i < n; i++) s += A[i][r] * A[i][c];
+      ATA[r].push(s);
+    }
+  }
+  // Invert ATA via Gauss-Jordan
+  var aug = [];
+  for (var r = 0; r < cols; r++) {
+    aug.push(ATA[r].slice());
+    for (var c = 0; c < cols; c++) aug[r].push(r === c ? 1 : 0);
+  }
+  for (var col = 0; col < cols; col++) {
+    // Pivot
+    var maxR = col;
+    for (var r = col+1; r < cols; r++) if (Math.abs(aug[r][col]) > Math.abs(aug[maxR][col])) maxR = r;
+    var tmp = aug[col]; aug[col] = aug[maxR]; aug[maxR] = tmp;
+    var piv = aug[col][col];
+    if (Math.abs(piv) < 1e-12) return null; // singular — fall back to rolling avg
+    for (var c = 0; c < cols*2; c++) aug[col][c] /= piv;
+    for (var r = 0; r < cols; r++) {
+      if (r === col) continue;
+      var f = aug[r][col];
+      for (var c = 0; c < cols*2; c++) aug[r][c] -= f * aug[col][c];
+    }
+  }
+  // First row of inverse gives coefficients for the smoothed value at centre
+  // weights[i] = sum_d inv[0][d] * A[i][d]
+  var weights = [];
+  for (var i = 0; i < n; i++) {
+    var w = 0;
+    for (var d = 0; d <= degree; d++) w += aug[0][cols + d] * A[i][d];
+    weights.push(w);
+  }
+  return weights;
+}
+
+// Cache coefficients so they're only recomputed when window changes
+var _sgCache = {};
+function getSGCoeffs(m) {
+  if (_sgCache[m]) return _sgCache[m];
+  var c = sgCoeffs(m, 2); // degree-2 quadratic
+  if (!c) c = sgCoeffs(m, 1); // fallback to linear if singular
+  _sgCache[m] = c;
+  return c;
+}
+
+function smoothSG(data, win) {
+  // win is the full window width (odd number). m = half-window.
+  if (win <= 1) return data.slice();
+  var m = Math.floor(win / 2);
+  var weights = getSGCoeffs(m);
+  if (!weights) return smoothRolling(data, win); // safety fallback
+  var out = [];
+  for (var i = 0; i < data.length; i++) {
+    var sum = 0, wSum = 0;
+    for (var k = -m; k <= m; k++) {
+      var idx = Math.min(Math.max(i + k, 0), data.length - 1); // clamp edges
+      var w = weights[k + m];
+      sum += w * data[idx].spd;
+      wSum += w;
+    }
+    // Clamp negative outputs — SG can produce tiny negatives at edges
+    out.push({ time: data[i].time, spd: Math.max(0, wSum !== 0 ? sum / wSum : sum) });
+  }
+  return out;
+}
+
+function smoothRolling(data, win) {
+  if (win <= 1) return data.slice();
+  var out = [];
+  for (var i = 0; i < data.length; i++) {
+    var h = Math.floor(win/2), s = Math.max(0,i-h), e = Math.min(data.length-1,i+h), sum = 0, n = 0;
+    for (var j = s; j <= e; j++) { sum += data[j].spd; n++; }
+    out.push({ time: data[i].time, spd: sum / n });
+  }
+  return out;
+}
+
+function smooth(data, win) {
+  return smoothSG(data, win);
+}
+
+// ── Reprocess ─────────────────────────────────────────────────────────────────
+function reprocess(){
+  var fps=parseFloat(document.getElementById('fps').value);
+  var unit=document.getElementById('unit').value;
+  var win=(parseInt(document.getElementById('smooth').value)||0)*2+1;
+  speedData=smooth(computeSpeeds(rawPoints,unit),win);
+  var durSec=(speedData[speedData.length-1].time-speedData[0].time)/1000;
+  var maxSpd=0;
+  for(var i=0;i<speedData.length;i++)if(speedData[i].spd>maxSpd)maxSpd=speedData[i].spd;
+  var h=Math.floor(durSec/3600),m=Math.floor((durSec%3600)/60),s=Math.floor(durSec%60),f=Math.round((durSec%1)*fps);
+  function p2(n){return n<10?'0'+n:''+n;}
+  var tc=p2(h)+':'+p2(m)+':'+p2(s)+':'+p2(f);
+  var distDisplay=unit==='mph'?(totalDistM/1609.344).toFixed(2)+' mi':(totalDistM/1000).toFixed(2)+' km';
+  document.getElementById('statPts').textContent=rawPoints.length;
+  document.getElementById('statDur').textContent=tc;
+  document.getElementById('statDist').textContent=distDisplay;
+  document.getElementById('statSpd').textContent=maxSpd.toFixed(1)+' '+unit.toUpperCase();
+  document.getElementById('maxSpeed').value=(Math.max(0.5,Math.ceil(maxSpd*2)/2)).toFixed(1);
+  document.getElementById('statsWrap').style.display='block';
+  drawRoute(); drawSpeed(maxSpd); drawElev(); setEnabled(true);
+  setStatus('Ready — '+rawPoints.length+' points · '+tc+' · '+distDisplay,'ok');
+}
+
+// ── Previews ──────────────────────────────────────────────────────────────────
+function project(pts,W,H){
+  var lats=pts.map(function(p){return p.lat;}),lons=pts.map(function(p){return p.lon;});
+  var mnLa=Math.min.apply(null,lats),mxLa=Math.max.apply(null,lats);
+  var mnLo=Math.min.apply(null,lons),mxLo=Math.max.apply(null,lons);
+  return pts.map(function(p){
+    var x=(p.lon-mnLo)/(mxLo-mnLo||1)*W;
+    var mr=Math.log(Math.tan(Math.PI/4+p.lat*Math.PI/360));
+    var mn2=Math.log(Math.tan(Math.PI/4+mnLa*Math.PI/360));
+    var mx2=Math.log(Math.tan(Math.PI/4+mxLa*Math.PI/360));
+    var y=H-(mr-mn2)/(mx2-mn2||1)*H;
+    return{x:x,y:y};
+  });
+}
+
+function drawRoute(){
+  var c=document.getElementById('routeCanvas'),W=c.offsetWidth||620;
+  c.width=W; c.height=180;
+  var ctx=c.getContext('2d'),pts=project(rawPoints,W-20,160);
+  var xs=pts.map(function(p){return p.x;}),ys=pts.map(function(p){return p.y;});
+  var mnX=Math.min.apply(null,xs),mxX=Math.max.apply(null,xs);
+  var mnY=Math.min.apply(null,ys),mxY=Math.max.apply(null,ys);
+  ctx.beginPath();
+  for(var i=0;i<pts.length;i++){
+    var x=10+(pts[i].x-mnX)/(mxX-mnX||1)*(W-20),y=10+(pts[i].y-mnY)/(mxY-mnY||1)*160;
+    if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);
+  }
+  ctx.strokeStyle='#f97316'; ctx.lineWidth=2; ctx.stroke();
+}
+
+function drawGauge(){
+  var maxSpd=parseFloat(document.getElementById('maxSpeed').value)||9;
+  var unit=document.getElementById('unit').value;
+  var curSpd=speedData.length?Math.min(speedData[Math.floor(speedData.length*0.25)].spd,maxSpd):maxSpd*0.4;
+  document.getElementById('gaugeWrap').style.display='block';
+  var c=document.getElementById('gaugeCanvas'),ctx=c.getContext('2d');
+  var S=200,cx=100,cy=100;
+  c.width=S; c.height=S;
+  ctx.clearRect(0,0,S,S);
+
+  // Outer dark disc
+  ctx.beginPath(); ctx.arc(cx,cy,cx,0,Math.PI*2); ctx.fillStyle='#111314'; ctx.fill();
+  ctx.beginPath(); ctx.arc(cx,cy,cx-4,0,Math.PI*2); ctx.fillStyle='#1a1c1f'; ctx.fill();
+
+  var R=74, trackW=10, speedW=12;
+  var TAU=Math.PI*2;
+
+  // Gap at the bottom. Arc starts at 7 o'clock (~210°), sweeps clockwise 300° to 5 o'clock (~150°... wait)
+  // Looking at image: gap is roughly 60° wide centered at bottom (270°)
+  // So arc runs from ~240° (8 o'clock) clockwise to ~300° (... 
+  // More carefully: red starts top-left of gap, white ends bottom-right of gap
+  // Gap center = 270° (bottom). Gap width ~50°.
+  // Start = 270 - 25 = 245° from 3-o-clock = TAU*(245/360)  → 8 o'clock area (bottom-left)
+  // End   = 270 + 25 = 295° from 3-o-clock = TAU*(295/360)  → bottom-right (~5 o'clock)  
+  // Clockwise sweep from 245° to 295° = 310° total
+  var startAng = TAU * (245/360); // bottom-left edge of gap
+  var endAng   = TAU * (295/360); // bottom-right edge of gap
+  // Clockwise from 245 → 295 going the LONG way = 360 - 50 = 310°
+
+  // White track ring — full arc clockwise from start to end (long way)
+  ctx.beginPath();
+  ctx.arc(cx,cy,R,startAng,endAng,false);
+  ctx.strokeStyle='rgba(255,255,255,0.88)';
+  ctx.lineWidth=trackW;
+  ctx.lineCap='round';
+  ctx.stroke();
+
+  // Red speed arc — clockwise from same start, fraction of total sweep
+  var totalSweep = TAU*(310/360);
+  var frac=maxSpd>0?curSpd/maxSpd:0;
+  if(frac>0.001){
+    ctx.beginPath();
+    ctx.arc(cx,cy,R,startAng,startAng+totalSweep*frac,false);
+    ctx.strokeStyle='#cc0000';
+    ctx.lineWidth=speedW;
+    ctx.lineCap='round';
+    ctx.stroke();
+  }
+
+  // Speed number
+  ctx.fillStyle='#ffffff';
+  ctx.font='bold 38px DM Mono,monospace';
+  ctx.textAlign='center';
+  ctx.textBaseline='middle';
+  ctx.fillText(curSpd.toFixed(1),cx,cy-6);
+
+  // Unit label
+  ctx.fillStyle='#7a7f8a';
+  ctx.font='bold 12px DM Sans,sans-serif';
+  ctx.fillText(unit.toUpperCase(),cx,cy+26);
+}
+
+function drawSpeed(maxSpd){
+  var c=document.getElementById('speedCanvas'),W=c.offsetWidth||620;
+  c.width=W; c.height=60;
+  var ctx=c.getContext('2d'),pad=4;
+  ctx.beginPath();
+  for(var i=0;i<speedData.length;i++){
+    var x=pad+(i/(speedData.length-1||1))*(W-pad*2),y=60-pad-(speedData[i].spd/(maxSpd||1))*(60-pad*2);
+    if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);
+  }
+  ctx.strokeStyle='#f97316'; ctx.lineWidth=1.5; ctx.stroke();
+}
+
+function drawElev(){
+  var elevPts=rawPoints.filter(function(p){return p.ele!==null&&!isNaN(p.ele);});
+  var wrap=document.getElementById('elevPreviewWrap');
+  if(!elevPts.length){wrap.style.display='none';return;}
+  wrap.style.display='block';
+  var c=document.getElementById('elevCanvas'),W=c.offsetWidth||620;
+  c.width=W; c.height=80;
+  var ctx=c.getContext('2d'),pad=6,iW=W-pad*2,iH=80-pad*2;
+  var eles=elevPts.map(function(p){return p.ele;});
+  var minEle=Math.min.apply(null,eles),maxEle=Math.max.apply(null,eles),eleRange=maxEle-minEle||1;
+  var totalDKm=0;
+  for(var i=1;i<elevPts.length;i++)totalDKm+=haversine(elevPts[i-1].lat,elevPts[i-1].lon,elevPts[i].lat,elevPts[i].lon)/1000;
+  function elevX(i){var t=0;for(var j=1;j<=i;j++)t+=totalDKm>0?iW*(haversine(elevPts[j-1].lat,elevPts[j-1].lon,elevPts[j].lat,elevPts[j].lon)/1000)/totalDKm:0;return pad+t;}
+  function elevY(i){return pad+(1-(elevPts[i].ele-minEle)/eleRange)*iH;}
+  // fill
+  ctx.beginPath(); ctx.moveTo(elevX(0),elevY(0));
+  for(var i=1;i<elevPts.length;i++)ctx.lineTo(elevX(i),elevY(i));
+  ctx.lineTo(pad+iW,pad+iH); ctx.lineTo(pad,pad+iH); ctx.closePath();
+  ctx.fillStyle='rgba(56,189,248,0.15)'; ctx.fill();
+  // line
+  ctx.beginPath(); ctx.moveTo(elevX(0),elevY(0));
+  for(var i=1;i<elevPts.length;i++)ctx.lineTo(elevX(i),elevY(i));
+  ctx.strokeStyle='#38bdf8'; ctx.lineWidth=1.5; ctx.stroke();
+  // labels
+  ctx.fillStyle='rgba(148,163,184,0.8)'; ctx.font='10px sans-serif';
+  ctx.fillText(Math.round(maxEle)+'m',pad+2,pad+10);
+  ctx.fillText(Math.round(minEle)+'m',pad+2,pad+iH-2);
+}
+
+// ── Filename helper ───────────────────────────────────────────────────────────
+function makeFilename(suffix,ext){
+  var dur=document.getElementById('statDur').textContent||'';
+  var base=currentFilename||'overlay';
+  return base+' - '+dur+' - '+suffix+'.'+ext;
+}
+
+// ── Builders ──────────────────────────────────────────────────────────────────
+function buildSetting(){
+  var maxSpd=parseFloat(document.getElementById('maxSpeed').value)||9;
+  var unit=document.getElementById('unit').value,u=unit.toUpperCase(),ms=maxSpd.toFixed(2);
+  var o='';
+  o+='{\n\tTools = ordered() {\n\t\tSpeedOverlay = GroupOperator {\n\t\t\tOutputs = {\n\t\t\t\tMainOutput1 = InstanceOutput {\n\t\t\t\t\tSourceOp = "Merge4",\n\t\t\t\t\tSource = "Output",\n\t\t\t\t}\n\t\t\t},\n\t\t\tViewInfo = GroupInfo { Pos = { 0, 0 } },\n\t\t\tTools = ordered() {\n';
+  o+='\t\t\t\tEllipse2 = EllipseMask {\n\t\t\t\t\tInputs = {\n\t\t\t\t\t\tFilter = Input { Value = FuID { "Fast Gaussian" }, },\n\t\t\t\t\t\tMaskWidth = Input { Value = 1920, },\n\t\t\t\t\t\tMaskHeight = Input { Value = 1080, },\n\t\t\t\t\t\tPixelAspect = Input { Value = { 1, 1 }, },\n\t\t\t\t\t\tUseFrameFormatSettings = Input { Value = 1, },\n\t\t\t\t\t\tClippingMode = Input { Value = FuID { "None" }, }\n\t\t\t\t\t},\n\t\t\t\t\tViewInfo = OperatorInfo { Pos = { 112.831, -169.149 } },\n\t\t\t\t},\n';
+  o+='\t\t\t\tBackground2 = Background {\n\t\t\t\t\tInputs = {\n\t\t\t\t\t\tEffectMask = Input { SourceOp = "Ellipse2", Source = "Mask", },\n\t\t\t\t\t\tWidth = Input { Value = 1920, },\n\t\t\t\t\t\tHeight = Input { Value = 1080, },\n\t\t\t\t\t\tUseFrameFormatSettings = Input { Value = 1, },\n\t\t\t\t\t\t["Gamut.SLogVersion"] = Input { Value = FuID { "SLog2" }, },\n\t\t\t\t\t\tTopLeftAlpha = Input { Value = 0.433, }\n\t\t\t\t\t},\n\t\t\t\t\tViewInfo = OperatorInfo { Pos = { 100.67, -80.5742 } },\n\t\t\t\t},\n';
+  o+='\t\t\t\tMerge1 = Merge {\n\t\t\t\t\tInputs = {\n\t\t\t\t\t\tBackground = Input { SourceOp = "Background2", Source = "Output", },\n\t\t\t\t\t\tForeground = Input { SourceOp = "Background1", Source = "Output", },\n\t\t\t\t\t\tPerformDepthMerge = Input { Value = 0, }\n\t\t\t\t\t},\n\t\t\t\t\tViewInfo = OperatorInfo { Pos = { 246.003, -77.5591 } },\n\t\t\t\t},\n';
+  o+='\t\t\t\tBackground1 = Background {\n\t\t\t\t\tInputs = {\n\t\t\t\t\t\tEffectMask = Input { SourceOp = "Ellipse1", Source = "Mask", },\n\t\t\t\t\t\tWidth = Input { Value = 1920, },\n\t\t\t\t\t\tHeight = Input { Value = 1080, },\n\t\t\t\t\t\tUseFrameFormatSettings = Input { Value = 1, },\n\t\t\t\t\t\t["Gamut.SLogVersion"] = Input { Value = FuID { "SLog2" }, },\n\t\t\t\t\t\tTopLeftRed = Input { Value = 1, },\n\t\t\t\t\t\tTopLeftGreen = Input { Value = 1, },\n\t\t\t\t\t\tTopLeftBlue = Input { Value = 1, }\n\t\t\t\t\t},\n\t\t\t\t\tViewInfo = OperatorInfo { Pos = { 248.669, -114.529 } },\n\t\t\t\t},\n';
+  o+='\t\t\t\tEllipse1 = EllipseMask {\n\t\t\t\t\tInputs = {\n\t\t\t\t\t\tFilter = Input { Value = FuID { "Fast Gaussian" }, },\n\t\t\t\t\t\tBorderWidth = Input { Value = 0.013, },\n\t\t\t\t\t\tSolid = Input { Value = 0, },\n\t\t\t\t\t\tWritePosition = Input { Value = 0.62, },\n\t\t\t\t\t\tWriteLength = Input { Value = -0.75, },\n\t\t\t\t\t\tMaskWidth = Input { Value = 1920, },\n\t\t\t\t\t\tMaskHeight = Input { Value = 1080, },\n\t\t\t\t\t\tPixelAspect = Input { Value = { 1, 1 }, },\n\t\t\t\t\t\tUseFrameFormatSettings = Input { Value = 1, },\n\t\t\t\t\t\tClippingMode = Input { Value = FuID { "None" }, },\n\t\t\t\t\t\tWidth = Input { Value = 0.457, },\n\t\t\t\t\t\tHeight = Input { Value = 0.457, Expression = "Width", }\n\t\t\t\t\t},\n\t\t\t\t\tViewInfo = OperatorInfo { Pos = { 252.669, -175.074 } },\n\t\t\t\t},\n';
+  o+='\t\t\t\tMerge2 = Merge {\n\t\t\t\t\tInputs = {\n\t\t\t\t\t\tBackground = Input { SourceOp = "Merge1", Source = "Output", },\n\t\t\t\t\t\tForeground = Input { SourceOp = "Background3", Source = "Output", },\n\t\t\t\t\t\tPerformDepthMerge = Input { Value = 0, }\n\t\t\t\t\t},\n\t\t\t\t\tViewInfo = OperatorInfo { Pos = { 366.003, -78.1499 } },\n\t\t\t\t},\n';
+  o+='\t\t\t\tBackground3 = Background {\n\t\t\t\t\tInputs = {\n\t\t\t\t\t\tEffectMask = Input { SourceOp = "CurrentSpeed", Source = "Mask", },\n\t\t\t\t\t\tWidth = Input { Value = 1920, },\n\t\t\t\t\t\tHeight = Input { Value = 1080, },\n\t\t\t\t\t\tUseFrameFormatSettings = Input { Value = 1, },\n\t\t\t\t\t\t["Gamut.SLogVersion"] = Input { Value = FuID { "SLog2" }, },\n\t\t\t\t\t\tTopLeftRed = Input { Value = 0.6666666666667, }\n\t\t\t\t\t},\n\t\t\t\t\tViewInfo = OperatorInfo { Pos = { 370.003, -120.574 } },\n\t\t\t\t},\n';
+  o+='\t\t\t\tCurrentSpeed = EllipseMask {\n\t\t\t\t\tNameSet = true,\n\t\t\t\t\tSourceOp = "Ellipse1",\n\t\t\t\t\tInputs = {\n\t\t\t\t\t\tEffectMask = Input { },\n\t\t\t\t\t\tSettingsNest = Input { },\n\t\t\t\t\t\tLayersNest = Input { },\n\t\t\t\t\t\tBorderWidth = Input { Value = 0.018, },\n\t\t\t\t\t\tWriteLength = Input { Value = -0.29525, Expression = "(-0.75/100)*Pre" },\n\t\t\t\t\t\tHeight = Input { Value = 0.457, Expression = "Width" },\n\t\t\t\t\t\tCommentsNest = Input { },\n\t\t\t\t\t\tFrameRenderScriptNest = Input { },\n\t\t\t\t\t\tStartRenderScripts = Input { },\n\t\t\t\t\t\tEndRenderScripts = Input { },\n';
+  o+='\t\t\t\t\t\tPre = Input { Value = 39.3666666666667, Expression = "(ActiveSpeed/'+ms+')*100" },\n';
+  o+='\t\t\t\t\t\tActiveSpeed = Input { Value = 3.543, }\n\t\t\t\t\t},\n\t\t\t\t\tViewInfo = OperatorInfo { Pos = { 376.003, -175.726 } },\n';
+  o+='\t\t\t\t\tUserControls = ordered() { Pre = { LINKID_DataType = "Number", INP_Integer = false, INP_MaxScale = 100, ICS_ControlPage = "Controls", INP_MinScale = 0, INPID_InputControl = "SliderControl", INP_SplineType = "Default", LINKS_Name = "Percentage", }, ActiveSpeed = { LINKS_Name = "ActiveSpeed", LINKID_DataType = "Number", INPID_InputControl = "SliderControl", INP_Integer = false, INP_MinScale = 0, INP_MaxScale = '+ms+', INP_MinAllowed = -1000000, INP_MaxAllowed = 1000000, INP_SplineType = "Default", ICS_ControlPage = "Controls" } }\n\t\t\t\t},\n';
+  o+='\t\t\t\tText1 = TextPlus {\n\t\t\t\t\tInputs = {\n\t\t\t\t\t\tWidth = Input { Value = 1920, },\n\t\t\t\t\t\tHeight = Input { Value = 1080, },\n\t\t\t\t\t\tUseFrameFormatSettings = Input { Value = 1, },\n\t\t\t\t\t\t["Gamut.SLogVersion"] = Input { Value = FuID { "SLog2" }, },\n\t\t\t\t\t\tWrap = Input { Value = 1, },\n\t\t\t\t\t\tLayoutRotation = Input { Value = 1, },\n\t\t\t\t\t\tTransformRotation = Input { Value = 1, },\n\t\t\t\t\t\tSoftness1 = Input { Value = 1, },\n\t\t\t\t\t\tStyledText = Input { Expression = "string.format( \\"%.1f\\", (CurrentSpeed.ActiveSpeed))\\n", },\n\t\t\t\t\t\tFont = Input { Value = "Open Sans", },\n\t\t\t\t\t\tStyle = Input { Value = "Bold", },\n\t\t\t\t\t\tSize = Input { Value = 0.2126, },\n\t\t\t\t\t\tVerticalJustificationNew = Input { Value = 3, },\n\t\t\t\t\t\tHorizontalJustificationNew = Input { Value = 3, }\n\t\t\t\t\t},\n\t\t\t\t\tViewInfo = OperatorInfo { Pos = { 508.336, -164.188 } },\n\t\t\t\t},\n';
+  o+='\t\t\t\tMerge3 = Merge {\n\t\t\t\t\tInputs = {\n\t\t\t\t\t\tBackground = Input { SourceOp = "Merge2", Source = "Output", },\n\t\t\t\t\t\tForeground = Input { SourceOp = "Text1", Source = "Output", },\n\t\t\t\t\t\tPerformDepthMerge = Input { Value = 0, }\n\t\t\t\t\t},\n\t\t\t\t\tViewInfo = OperatorInfo { Pos = { 503.003, -82.9757 } },\n\t\t\t\t},\n';
+  o+='\t\t\t\tMerge4 = Merge {\n\t\t\t\t\tCtrlWZoom = false,\n\t\t\t\t\tInputs = {\n\t\t\t\t\t\tBackground = Input { SourceOp = "Merge3", Source = "Output", },\n\t\t\t\t\t\tForeground = Input { SourceOp = "Text2", Source = "Output", },\n\t\t\t\t\t\tPerformDepthMerge = Input { Value = 0, }\n\t\t\t\t\t},\n\t\t\t\t\tViewInfo = OperatorInfo { Pos = { 628.336, -87.8242 } },\n\t\t\t\t},\n';
+  o+='\t\t\t\tText2 = TextPlus {\n\t\t\t\t\tInputs = {\n\t\t\t\t\t\tWidth = Input { Value = 1920, },\n\t\t\t\t\t\tHeight = Input { Value = 1080, },\n\t\t\t\t\t\tUseFrameFormatSettings = Input { Value = 1, },\n\t\t\t\t\t\t["Gamut.SLogVersion"] = Input { Value = FuID { "SLog2" }, },\n\t\t\t\t\t\tWrap = Input { Value = 1, },\n\t\t\t\t\t\tLayoutRotation = Input { Value = 1, },\n\t\t\t\t\t\tCharacterOffset = Input { Value = { 0, -0.178 }, },\n\t\t\t\t\t\tTransformRotation = Input { Value = 1, },\n\t\t\t\t\t\tRed1 = Input { Value = 0.4274509803922, },\n\t\t\t\t\t\tGreen1 = Input { Value = 0.4274509803922, },\n\t\t\t\t\t\tBlue1 = Input { Value = 0.4941176470588, },\n\t\t\t\t\t\tSoftness1 = Input { Value = 1, },\n\t\t\t\t\t\tStyledText = Input { Value = "'+u+'", },\n\t\t\t\t\t\tFont = Input { Value = "Open Sans", },\n\t\t\t\t\t\tStyle = Input { Value = "Bold", },\n\t\t\t\t\t\tVerticalJustificationNew = Input { Value = 3, },\n\t\t\t\t\t\tHorizontalJustificationNew = Input { Value = 3, }\n\t\t\t\t\t},\n\t\t\t\t\tViewInfo = OperatorInfo { Pos = { 628.336, -167.824 } },\n\t\t\t\t}\n\t\t\t},\n\t\t},\n\t},\n\tActiveTool = "SpeedOverlay"\n}';
+  return o;
+}
+
+function buildRouteSVG(){
+  var tW=parseFloat(document.getElementById('trackW').value)||4;
+  var sW=parseFloat(document.getElementById('shadowW').value)||5;
+  var sO=parseFloat(document.getElementById('shadowOffset').value)||5;
+  var dR=parseInt(document.getElementById('dotR').value)||8;
+  var tc=document.getElementById('trackColor').value,sc=document.getElementById('shadowColor').value;
+  var mnLa=Infinity,mxLa=-Infinity,mnLo=Infinity,mxLo=-Infinity;
+  for(var i=0;i<rawPoints.length;i++){mnLa=Math.min(mnLa,rawPoints[i].lat);mxLa=Math.max(mxLa,rawPoints[i].lat);mnLo=Math.min(mnLo,rawPoints[i].lon);mxLo=Math.max(mxLo,rawPoints[i].lon);}
+  var laR=mxLa-mnLa||0.001,loR=mxLo-mnLo||0.001,ar=loR/laR;
+  var sw=1920,sh=sw/ar; if(sh>1080){sh=1080;sw=sh*ar;}
+  var mg=Math.max(10,dR+sO+sW),vbW=sw+2*mg,vbH=sh+2*mg;
+  var mD='',sdD='';
+  for(var i=0;i<rawPoints.length;i++){
+    var x=((rawPoints[i].lon-mnLo)*(sw/loR)).toFixed(10),y=(sh-((rawPoints[i].lat-mnLa)*(sh/laR))).toFixed(10);
+    mD+=(i===0?'M ':' ')+x+','+y;
+    sdD+=(i===0?'M ':' ')+(parseFloat(x)+sO).toFixed(10)+','+(parseFloat(y)+sO).toFixed(10);
+  }
+  var dx=(sw/2).toFixed(10),dy=(sh/2).toFixed(10);
+  return '<svg xmlns="http://www.w3.org/2000/svg" width="'+sw.toFixed(10)+'" height="'+sh.toFixed(10)+'" viewBox="-'+mg+' -'+mg+' '+vbW.toFixed(10)+' '+vbH.toFixed(10)+'">'
+    +'<path stroke="'+sc+'" stroke-width="'+sW+'" stroke-linejoin="round" fill="none" id="ShadowPath" d="'+sdD+'"/>'
+    +'<path stroke="'+tc+'" stroke-width="'+tW+'" stroke-linejoin="round" fill="none" id="MainPath" d="'+mD+'"/>'
+    +'<circle cx="'+dx+'" cy="'+dy+'" r="'+(dR+dR*0.2).toFixed(2)+'" fill="'+sc+'" id="OutlineDot"/>'
+    +'<circle cx="'+dx+'" cy="'+dy+'" r="'+dR+'" fill="#fca300" id="MainDot"/>'
+    +'</svg>';
+}
+
+function buildRouteSPL(){
+  var fps=parseFloat(document.getElementById('fps').value);
+  var offset=parseFloat(document.getElementById('offset').value)||0;
+  var drift=parseFloat(document.getElementById('driftFactor').value)||1.0;
+  var t0=rawPoints[0].time,td=0;
+  for(var i=1;i<rawPoints.length;i++)td+=haversine(rawPoints[i-1].lat,rawPoints[i-1].lon,rawPoints[i].lat,rawPoints[i].lon);
+  var cum=[0];
+  for(var i=1;i<rawPoints.length;i++)cum.push(cum[i-1]+haversine(rawPoints[i-1].lat,rawPoints[i-1].lon,rawPoints[i].lat,rawPoints[i].lon));
+  var lines=['DFSP'],lf=-1;
+  for(var i=0;i<rawPoints.length;i++){
+    var fr=Math.round(((rawPoints[i].time-t0)/1000*drift+offset)*fps);
+    if(fr>=0&&fr!==lf){lines.push(fr+' '+(td>0?cum[i]/td:0));lf=fr;}
+  }
+  return lines.join('\n');
+}
+
+function buildElevSVG(){
+  var pts=rawPoints.filter(function(p){return p.ele!==null&&!isNaN(p.ele);});
+  if(!pts.length)return null;
+  var W=parseInt(document.getElementById('elevW').value)||1920,H=parseInt(document.getElementById('elevH').value)||300;
+  var lW=parseFloat(document.getElementById('elevLineW').value)||2,sW=parseFloat(document.getElementById('elevShadowW').value)||5;
+  var sO=parseFloat(document.getElementById('elevShadowOffset').value)||5;
+  var lc=document.getElementById('elevColor').value,sc=document.getElementById('elevShadowColor').value;
+  var fc=document.getElementById('elevFillColor').value,fill=document.getElementById('elevFill').value==='1';
+  var dR=parseInt(document.getElementById('dotR').value)||8;
+  var mnE=Infinity,mxE=-Infinity;
+  for(var i=0;i<pts.length;i++){if(pts[i].ele<mnE)mnE=pts[i].ele;if(pts[i].ele>mxE)mxE=pts[i].ele;}
+  var eR=mxE-mnE||1,tdK=0;
+  for(var i=1;i<pts.length;i++)tdK+=haversine(pts[i-1].lat,pts[i-1].lon,pts[i].lat,pts[i].lon)/1000;
+  var mg=Math.max(10,dR+dR*0.2+sO+sW),vbW=W+2*mg,vbH=H+2*mg;
+  var mD='',sdD='',tx=0;
+  for(var i=0;i<pts.length;i++){
+    var xi=(i>0&&tdK>0)?W*(haversine(pts[i-1].lat,pts[i-1].lon,pts[i].lat,pts[i].lon)/1000)/tdK:0;
+    tx+=xi;
+    var x=tx.toFixed(10),y=(H-((pts[i].ele-mnE)*(H/eR))).toFixed(10);
+    mD+=(i===0?'M ':' ')+x+','+y;
+    sdD+=(i===0?'M ':' ')+(tx+sO).toFixed(10)+','+(parseFloat(y)+sO).toFixed(10);
+  }
+  var fD=mD+' L'+W.toFixed(10)+','+H.toFixed(10)+' L0,'+H.toFixed(10)+' Z';
+  var dcx=(W/2).toFixed(10),dcy=(H/2).toFixed(10);
+  var out='<svg xmlns="http://www.w3.org/2000/svg" width="'+W+'" height="'+H+'" viewBox="-'+mg+' -'+mg+' '+vbW.toFixed(10)+' '+vbH.toFixed(10)+'">';
+  if(fill)out+='<path fill="'+fc+'" d="'+fD+'" id="ElevFill"/>';
+  out+='<path stroke="'+sc+'" stroke-width="'+sW+'" stroke-linejoin="round" fill="none" id="ShadowPath" d="'+sdD+'"/>';
+  out+='<path stroke="'+lc+'" stroke-width="'+lW+'" stroke-linejoin="round" fill="none" id="MainPath" d="'+mD+'"/>';
+  out+='<circle cx="'+dcx+'" cy="'+dcy+'" r="'+(dR+dR*0.2).toFixed(2)+'" fill="'+sc+'" id="OutlineDot"/>';
+  out+='<circle cx="'+dcx+'" cy="'+dcy+'" r="'+dR+'" fill="'+lc+'" id="MainDot"/>';
+  out+='</svg>';
+  return out;
+}
+
+function buildElevSPL(){
+  var fps=parseFloat(document.getElementById('fps').value);
+  var offset=parseFloat(document.getElementById('offset').value)||0;
+  var drift=parseFloat(document.getElementById('driftFactor').value)||1.0;
+  var W=parseFloat(document.getElementById('elevW').value)||1920,H=parseFloat(document.getElementById('elevH').value)||300;
+  var t0=rawPoints[0].time;
+  var pts=rawPoints.filter(function(p){return p.ele!==null&&!isNaN(p.ele);});
+  if(!pts.length){
+    var lines=['DFSP'],lf=-1,tN=rawPoints[rawPoints.length-1].time;
+    for(var i=0;i<rawPoints.length;i++){var fr=Math.round(((rawPoints[i].time-t0)/1000*drift+offset)*fps);if(fr>=0&&fr!==lf){lines.push(fr+' '+((rawPoints[i].time-t0)/(tN-t0)));lf=fr;}}
+    return lines.join('\n');
+  }
+  var mnE=Infinity,mxE=-Infinity;
+  for(var i=0;i<pts.length;i++){if(pts[i].ele<mnE)mnE=pts[i].ele;if(pts[i].ele>mxE)mxE=pts[i].ele;}
+  var eR=mxE-mnE||1,cum=[0],tp=0;
+  for(var i=1;i<pts.length;i++){
+    var d=haversine(pts[i-1].lat,pts[i-1].lon,pts[i].lat,pts[i].lon)/1000;
+    var ed=(pts[i].ele-pts[i-1].ele)*(H/eR)*100;
+    tp+=Math.sqrt(d*d+ed*ed); cum.push(tp);
+  }
+  var lines=['DFSP'],lf=-1;
+  for(var i=0;i<pts.length;i++){
+    var fr=Math.round(((pts[i].time-t0)/1000*drift+offset)*fps);
+    if(fr>=0&&fr!==lf){lines.push(fr+' '+(tp>0?cum[i]/tp:0));lf=fr;}
+  }
+  return lines.join('\n');
+}
+
+function buildSpeedSPL(){
+  var fps=parseFloat(document.getElementById('fps').value);
+  var maxSpd=parseFloat(document.getElementById('maxSpeed').value)||9;
+  var offset=parseFloat(document.getElementById('offset').value)||0;
+  var drift=parseFloat(document.getElementById('driftFactor').value)||1.0;
+  var t0=speedData[0].time,lines=['DFSP'],lf=-1;
+  for(var i=0;i<speedData.length;i++){
+    var fr=Math.round(((speedData[i].time-t0)/1000*drift+offset)*fps);
+    var spd=Math.min(speedData[i].spd,maxSpd);
+    if(fr>=0&&fr!==lf){lines.push(fr+' '+spd.toFixed(6));lf=fr;}
+  }
+  return lines.join('\n');
+}
+
+// ── Download helpers ──────────────────────────────────────────────────────────
+function dl(content,filename){
+  var b=new Blob([content],{type:'text/plain'}),u=URL.createObjectURL(b),a=document.createElement('a');
+  a.href=u; a.download=filename; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(u);
+}
+function dlSVG(content,filename){
+  var b=new Blob([content],{type:'image/svg+xml'}),u=URL.createObjectURL(b),a=document.createElement('a');
+  a.href=u; a.download=filename; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(u);
+}
+
+// ── Button handlers ───────────────────────────────────────────────────────────
+document.getElementById('btnSetting').addEventListener('click',function(){dl(buildSetting(),makeFilename('Speed_Overlay','setting'));setStatus('Downloaded Speed_Overlay.setting','ok');});
+document.getElementById('btnSpeedSPL').addEventListener('click',function(){dl(buildSpeedSPL(),makeFilename('Speed_SPL','spl'));setStatus('Downloaded Speed SPL','ok');});
+document.getElementById('btnRouteSVG').addEventListener('click',function(){dlSVG(buildRouteSVG(),makeFilename('Route','svg'));setStatus('Downloaded Route SVG','ok');});
+document.getElementById('btnRouteSPL').addEventListener('click',function(){dl(buildRouteSPL(),makeFilename('Route_Dot_SPL','spl'));setStatus('Downloaded Route Dot SPL','ok');});
+document.getElementById('btnElevSVG').addEventListener('click',function(){var s=buildElevSVG();if(!s){setStatus('No elevation data in this file','err');return;}dlSVG(s,makeFilename('Elevation','svg'));setStatus('Downloaded Elevation SVG','ok');});
+document.getElementById('btnElevSPL').addEventListener('click',function(){dl(buildElevSPL(),makeFilename('Elevation_SPL','spl'));setStatus('Downloaded Elevation SPL','ok');});
+
+document.getElementById('btnDownloadAll').addEventListener('click',function(){
+  dl(buildSetting(),makeFilename('Speed_Overlay','setting'));
+  dl(buildSpeedSPL(),makeFilename('Speed_SPL','spl'));
+  dlSVG(buildRouteSVG(),makeFilename('Route','svg'));
+  dl(buildRouteSPL(),makeFilename('Route_Dot_SPL','spl'));
+  var es=buildElevSVG();
+  if(es) dlSVG(es,makeFilename('Elevation','svg'));
+  dl(buildElevSPL(),makeFilename('Elevation_SPL','spl'));
+  setStatus('All '+(es?'6':'5')+' files downloaded','ok');
+});
+</script>
+</body>
+</html>
