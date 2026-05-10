@@ -117,6 +117,8 @@ input[type=checkbox]{accent-color:var(--accent);width:14px;height:14px;cursor:po
     <p class="subtitle">Speedometer · Route SVG · Dot SPL · Elevation SVG · Elevation SPL</p>
   </div>
   <div class="top-actions">
+    <button class="icon-btn" id="btnSaveSettings">💾 Save</button>
+    <button class="icon-btn" id="btnLoadSettings">📂 Load</button>
     <button class="icon-btn" id="btnTheme">☀️ Light</button>
   </div>
 </div>
@@ -221,6 +223,18 @@ input[type=checkbox]{accent-color:var(--accent);width:14px;height:14px;cursor:po
     <div class="field"><label>Dot color</label><input type="color" id="dotColor" value="#fca300"></div>
     <div class="field"><label>Shadow color</label><input type="color" id="shadowColor" value="#000000"></div>
   </div>
+  <div class="toggle-row" style="margin-top:10px">
+    <input type="checkbox" id="speedGradient">
+    <label for="speedGradient">Speed color gradient (slow → fast)</label>
+  </div>
+  <div id="speedGradientOptions" style="display:none;margin-top:8px">
+    <div class="grid3">
+      <div class="field"><label>Slow color</label><input type="color" id="gradSlowColor" value="#38bdf8"></div>
+      <div class="field"><label>Mid color</label><input type="color" id="gradMidColor" value="#f97316"></div>
+      <div class="field"><label>Fast color</label><input type="color" id="gradFastColor" value="#ef4444"></div>
+    </div>
+    <div class="hint" style="margin-top:6px">Overrides track color. Each segment is colored by its speed relative to your peak speed.</div>
+  </div>
 </div>
  
 <!-- Elevation SVG style -->
@@ -252,6 +266,13 @@ input[type=checkbox]{accent-color:var(--accent);width:14px;height:14px;cursor:po
     <div class="grid3" style="margin-top:10px">
       <div class="field"><label>Fill color</label><input type="color" id="elevFillColor" value="#1a3a4a"></div>
       <div class="field"><label>Dot color</label><input type="color" id="elevDotColor" value="#38bdf8"></div>
+    </div>
+    <div style="margin-top:10px;display:flex;flex-direction:column;gap:8px">
+
+      <div class="toggle-row">
+        <input type="checkbox" id="gradeShading">
+        <label for="gradeShading">Grade shading (flat=green → steep=red)</label>
+      </div>
     </div>
   </div>
 </div>
@@ -379,8 +400,8 @@ var syncCalcResult={offset:null,drift:null};
  
 // ── Defaults for reset ────────────────────────────────────────────────────────
 var DEF_VIDEO={fps:'29.97',unit:'mph',smooth:'3',offset:'0',driftFactor:'1.0'};
-var DEF_ROUTE={trackW:'4',dotR:'8',shadowW:'5',shadowOffset:'5',trackColor:'#ff6600',dotColor:'#fca300',shadowColor:'#000000'};
-var DEF_ELEV={elevW:'1920',elevH:'300',elevLineW:'2',elevShadowW:'5',elevColor:'#38bdf8',elevShadowColor:'#000000',elevShadowOffset:'5',elevFill:'1',elevFillColor:'#1a3a4a',elevDotColor:'#38bdf8'};
+var DEF_ROUTE={trackW:'4',dotR:'8',shadowW:'5',shadowOffset:'5',trackColor:'#ff6600',dotColor:'#fca300',shadowColor:'#000000',gradSlowColor:'#38bdf8',gradMidColor:'#f97316',gradFastColor:'#ef4444'};
+var DEF_ELEV={elevW:'1920',elevH:'300',elevLineW:'2',elevShadowW:'5',elevColor:'#38bdf8',elevShadowColor:'#000000',elevShadowOffset:'5',elevFill:'1',elevFillColor:'#1a3a4a',elevDotColor:'#38bdf8'}; // elevSmooth and gradeShading are checkboxes, handled separately
  
 function applyDefaults(defs){ Object.keys(defs).forEach(function(id){var el=document.getElementById(id);if(el)el.value=defs[id];}); }
  
@@ -473,7 +494,63 @@ document.getElementById('syncApply').addEventListener('click',function(){
 // ── Reset buttons ─────────────────────────────────────────────────────────────
 document.getElementById('resetVideo').addEventListener('click',function(){applyDefaults(DEF_VIDEO);if(rawPoints.length)reprocess();});
 document.getElementById('resetRoute').addEventListener('click',function(){applyDefaults(DEF_ROUTE);});
-document.getElementById('resetElev').addEventListener('click',function(){applyDefaults(DEF_ELEV);});
+document.getElementById('resetElev').addEventListener('click',function(){
+  applyDefaults(DEF_ELEV);
+  document.getElementById('gradeShading').checked=false;
+});
+
+// ── Speed gradient toggle ─────────────────────────────────────────────────────
+document.getElementById('speedGradient').addEventListener('change',function(){
+  document.getElementById('speedGradientOptions').style.display=this.checked?'block':'none';
+  if(rawPoints.length) drawRoute();
+});
+['gradSlowColor','gradMidColor','gradFastColor'].forEach(function(id){
+  document.getElementById(id).addEventListener('input',function(){if(rawPoints.length) drawRoute();});
+});
+
+// ── Elev smooth / grade shading live preview ──────────────────────────────────
+document.getElementById('gradeShading').addEventListener('change',function(){if(rawPoints.length) drawElev();});
+
+// ── Settings save / load ──────────────────────────────────────────────────────
+var SETTINGS_KEY='gpxOverlaySettings';
+var SETTINGS_IDS=['fps','unit','smooth','offset','driftFactor','trackW','dotR','shadowW','shadowOffset',
+  'trackColor','dotColor','shadowColor','gradSlowColor','gradMidColor','gradFastColor',
+  'elevW','elevH','elevLineW','elevShadowW','elevColor','elevShadowColor','elevShadowOffset',
+  'elevFill','elevFillColor','elevDotColor'];
+var SETTINGS_CHECKS=['speedGradient','gradeShading','showElev'];
+
+document.getElementById('btnSaveSettings').addEventListener('click',function(){
+  var s={};
+  SETTINGS_IDS.forEach(function(id){var el=document.getElementById(id);if(el)s[id]=el.value;});
+  SETTINGS_CHECKS.forEach(function(id){var el=document.getElementById(id);if(el)s[id]=el.checked;});
+  try{localStorage.setItem(SETTINGS_KEY,JSON.stringify(s));}catch(e){}
+  var btn=this; btn.textContent='✓ Saved!'; btn.style.color='var(--success)';
+  setTimeout(function(){btn.textContent='💾 Save';btn.style.color='';},1800);
+});
+
+document.getElementById('btnLoadSettings').addEventListener('click',function(){
+  var raw; try{raw=localStorage.getItem(SETTINGS_KEY);}catch(e){}
+  if(!raw){setStatus('No saved settings found','err');return;}
+  var s; try{s=JSON.parse(raw);}catch(e){setStatus('Could not read saved settings','err');return;}
+  SETTINGS_IDS.forEach(function(id){if(s[id]!==undefined){var el=document.getElementById(id);if(el)el.value=s[id];}});
+  SETTINGS_CHECKS.forEach(function(id){if(s[id]!==undefined){var el=document.getElementById(id);if(el)el.checked=s[id];}});
+  // Sync dependent UI visibility
+  document.getElementById('speedGradientOptions').style.display=document.getElementById('speedGradient').checked?'block':'none';
+  document.getElementById('elevOptions').style.display=document.getElementById('showElev').checked?'block':'none';
+  if(rawPoints.length) reprocess();
+  setStatus('Settings loaded','ok');
+});
+
+// Auto-load settings on page start
+(function(){
+  var raw; try{raw=localStorage.getItem(SETTINGS_KEY);}catch(e){}
+  if(!raw) return;
+  var s; try{s=JSON.parse(raw);}catch(e){return;}
+  SETTINGS_IDS.forEach(function(id){if(s[id]!==undefined){var el=document.getElementById(id);if(el)el.value=s[id];}});
+  SETTINGS_CHECKS.forEach(function(id){if(s[id]!==undefined){var el=document.getElementById(id);if(el)el.checked=s[id];}});
+  document.getElementById('speedGradientOptions').style.display=document.getElementById('speedGradient').checked?'block':'none';
+  document.getElementById('elevOptions').style.display=document.getElementById('showElev').checked?'block':'none';
+})();
  
 // ── Drop zone & file input ────────────────────────────────────────────────────
 var dropZone=document.getElementById('dropZone');
@@ -487,6 +564,15 @@ fileInput.addEventListener('change',function(){if(fileInput.files[0])handleFile(
  
 ['fps','unit','smooth','offset','driftFactor'].forEach(function(id){
   document.getElementById(id).addEventListener('change',function(){if(rawPoints.length)reprocess();});
+});
+// Live preview updates for style changes
+['trackColor','dotColor','shadowColor'].forEach(function(id){
+  document.getElementById(id).addEventListener('input',function(){if(rawPoints.length) drawRoute();});
+});
+['elevColor','elevFillColor','elevFill','elevShadowColor'].forEach(function(id){
+  var el=document.getElementById(id);
+  if(el) el.addEventListener('input',function(){if(rawPoints.length) drawElev();});
+  if(el && el.tagName==='SELECT') el.addEventListener('change',function(){if(rawPoints.length) drawElev();});
 });
 document.getElementById('showElev').addEventListener('change',function(){
   document.getElementById('elevOptions').style.display=this.checked?'':'none';
@@ -556,7 +642,7 @@ function parseFIT(buffer,name){
         var gmn=arch===0?u16(pos):(bytes[pos]<<8)|bytes[pos+1]; pos+=2;
         var nf=bytes[pos++],flds=[],ds=0;
         for(var f=0;f<nf;f++){flds.push({num:bytes[pos++],size:bytes[pos++],arch:arch});bytes[pos++];ds+=flds[flds.length-1].size;}
-        if(mt===3){var nd=bytes[pos++];for(var d=0;d<nd;d++){ds+=bytes[pos+1];pos+=3;}}
+        if(h&0x20){var nd=bytes[pos++];for(var d=0;d<nd;d++){ds+=bytes[pos+1];pos+=3;}}
         definitions[lmn]={globalMsgNum:gmn,fields:flds,dataSize:ds,arch:arch};
       } else {
         var def=definitions[lmn];
@@ -770,6 +856,10 @@ function project(pts,W,H){
   });
 }
  
+function hexToRgb(h){var r=parseInt(h.slice(1,3),16),g=parseInt(h.slice(3,5),16),b=parseInt(h.slice(5,7),16);return[r,g,b];}
+function lerpColor(c1,c2,t){return[Math.round(c1[0]+(c2[0]-c1[0])*t),Math.round(c1[1]+(c2[1]-c1[1])*t),Math.round(c1[2]+(c2[2]-c1[2])*t)];}
+function gradColor(t,slow,mid,fast){var c=t<0.5?lerpColor(slow,mid,t*2):lerpColor(mid,fast,(t-0.5)*2);return'rgb('+c[0]+','+c[1]+','+c[2]+')';}
+
 function drawRoute(){
   var c=document.getElementById('routeCanvas'),W=c.offsetWidth||620;
   c.width=W; c.height=180;
@@ -777,12 +867,24 @@ function drawRoute(){
   var xs=pts.map(function(p){return p.x;}),ys=pts.map(function(p){return p.y;});
   var mnX=Math.min.apply(null,xs),mxX=Math.max.apply(null,xs);
   var mnY=Math.min.apply(null,ys),mxY=Math.max.apply(null,ys);
-  ctx.beginPath();
-  for(var i=0;i<pts.length;i++){
-    var x=10+(pts[i].x-mnX)/(mxX-mnX||1)*(W-20),y=10+(pts[i].y-mnY)/(mxY-mnY||1)*160;
-    if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);
+  var useGrad=document.getElementById('speedGradient').checked;
+  var mapped=pts.map(function(p,i){return{x:10+(p.x-mnX)/(mxX-mnX||1)*(W-20),y:10+(p.y-mnY)/(mxY-mnY||1)*160};});
+  if(!useGrad){
+    ctx.beginPath();
+    for(var i=0;i<mapped.length;i++){if(i===0)ctx.moveTo(mapped[i].x,mapped[i].y);else ctx.lineTo(mapped[i].x,mapped[i].y);}
+    ctx.strokeStyle='#f97316'; ctx.lineWidth=2; ctx.stroke();
+  } else {
+    var slow=hexToRgb(document.getElementById('gradSlowColor').value);
+    var mid=hexToRgb(document.getElementById('gradMidColor').value);
+    var fast=hexToRgb(document.getElementById('gradFastColor').value);
+    var maxSpd=0;
+    for(var i=0;i<speedData.length;i++) if(speedData[i].spd>maxSpd) maxSpd=speedData[i].spd;
+    for(var i=1;i<mapped.length;i++){
+      var t=maxSpd>0?Math.min(speedData[Math.min(i,speedData.length-1)].spd/maxSpd,1):0;
+      ctx.beginPath(); ctx.moveTo(mapped[i-1].x,mapped[i-1].y); ctx.lineTo(mapped[i].x,mapped[i].y);
+      ctx.strokeStyle=gradColor(t,slow,mid,fast); ctx.lineWidth=2; ctx.stroke();
+    }
   }
-  ctx.strokeStyle='#f97316'; ctx.lineWidth=2; ctx.stroke();
 }
  
 function drawGauge(){
@@ -859,6 +961,51 @@ function drawSpeed(maxSpd){
   ctx.strokeStyle='#f97316'; ctx.lineWidth=1.5; ctx.stroke();
 }
  
+function gradeColor(gradePct){
+  // 0%=green, 5%=yellow, 10%+=red
+  var t=Math.min(Math.abs(gradePct)/10,1);
+  var r=Math.round(34+(255-34)*t),g=Math.round(197+(197*(1-t)*0.3)),b=Math.round(94*(1-t));
+  return'rgba('+r+','+g+','+b+',0.85)';
+}
+
+// Build precomputed cumulative-distance x positions (shared by drawElev and buildElevSVG)
+function buildElevXY(elevPts,iW,iH,pad){
+  var eles=elevPts.map(function(p){return p.ele;});
+  var minEle=Math.min.apply(null,eles),maxEle=Math.max.apply(null,eles),eleRange=maxEle-minEle||1;
+  var totalDKm=0;
+  for(var i=1;i<elevPts.length;i++) totalDKm+=haversine(elevPts[i-1].lat,elevPts[i-1].lon,elevPts[i].lat,elevPts[i].lon)/1000;
+  var cum=[0];
+  for(var i=1;i<elevPts.length;i++) cum.push(cum[i-1]+haversine(elevPts[i-1].lat,elevPts[i-1].lon,elevPts[i].lat,elevPts[i].lon)/1000);
+  var xs=[],ys=[];
+  for(var i=0;i<elevPts.length;i++){
+    xs.push(pad+(totalDKm>0?(cum[i]/totalDKm)*iW:0));
+    ys.push(pad+(1-(elevPts[i].ele-minEle)/eleRange)*iH);
+  }
+  return{xs:xs,ys:ys,minEle:minEle,maxEle:maxEle,eleRange:eleRange,elevPts:elevPts};
+}
+
+// Catmull-Rom control points for smooth bezier through points
+function catmullToBezier(xs,ys){
+  // Returns array of {x1,y1,x2,y2,x,y} cubic bezier segments
+  var segs=[];
+  var n=xs.length;
+  for(var i=0;i<n-1;i++){
+    var p0=i>0?{x:xs[i-1],y:ys[i-1]}:{x:xs[i],y:ys[i]};
+    var p1={x:xs[i],y:ys[i]};
+    var p2={x:xs[i+1],y:ys[i+1]};
+    var p3=i<n-2?{x:xs[i+2],y:ys[i+2]}:{x:xs[i+1],y:ys[i+1]};
+    var t=0.5;
+    segs.push({
+      x1:p1.x+(p2.x-p0.x)*t/3,
+      y1:p1.y+(p2.y-p0.y)*t/3,
+      x2:p2.x-(p3.x-p1.x)*t/3,
+      y2:p2.y-(p3.y-p1.y)*t/3,
+      x:p2.x,y:p2.y
+    });
+  }
+  return segs;
+}
+
 function drawElev(){
   var elevPts=rawPoints.filter(function(p){return p.ele!==null&&!isNaN(p.ele);});
   var wrap=document.getElementById('elevPreviewWrap');
@@ -867,25 +1014,55 @@ function drawElev(){
   var c=document.getElementById('elevCanvas'),W=c.offsetWidth||620;
   c.width=W; c.height=80;
   var ctx=c.getContext('2d'),pad=6,iW=W-pad*2,iH=80-pad*2;
-  var eles=elevPts.map(function(p){return p.ele;});
-  var minEle=Math.min.apply(null,eles),maxEle=Math.max.apply(null,eles),eleRange=maxEle-minEle||1;
-  var totalDKm=0;
-  for(var i=1;i<elevPts.length;i++)totalDKm+=haversine(elevPts[i-1].lat,elevPts[i-1].lon,elevPts[i].lat,elevPts[i].lon)/1000;
-  function elevX(i){var t=0;for(var j=1;j<=i;j++)t+=totalDKm>0?iW*(haversine(elevPts[j-1].lat,elevPts[j-1].lon,elevPts[j].lat,elevPts[j].lon)/1000)/totalDKm:0;return pad+t;}
-  function elevY(i){return pad+(1-(elevPts[i].ele-minEle)/eleRange)*iH;}
-  // fill
-  ctx.beginPath(); ctx.moveTo(elevX(0),elevY(0));
-  for(var i=1;i<elevPts.length;i++)ctx.lineTo(elevX(i),elevY(i));
-  ctx.lineTo(pad+iW,pad+iH); ctx.lineTo(pad,pad+iH); ctx.closePath();
-  ctx.fillStyle='rgba(56,189,248,0.15)'; ctx.fill();
-  // line
-  ctx.beginPath(); ctx.moveTo(elevX(0),elevY(0));
-  for(var i=1;i<elevPts.length;i++)ctx.lineTo(elevX(i),elevY(i));
-  ctx.strokeStyle='#38bdf8'; ctx.lineWidth=1.5; ctx.stroke();
-  // labels
+  var useSmooth=false;
+  var useGrade=document.getElementById('gradeShading').checked;
+  var lineColor=document.getElementById('elevColor').value;
+  var fillColor=document.getElementById('elevFillColor').value;
+  var useFill=document.getElementById('elevFill').value==='1';
+  var d=buildElevXY(elevPts,iW,iH,pad);
+  var xs=d.xs,ys=d.ys;
+  var segs=useSmooth?catmullToBezier(xs,ys):null;
+
+  // fill area
+  if(useFill){
+    ctx.beginPath(); ctx.moveTo(xs[0],ys[0]);
+    if(useSmooth && segs){
+      for(var i=0;i<segs.length;i++) ctx.bezierCurveTo(segs[i].x1,segs[i].y1,segs[i].x2,segs[i].y2,segs[i].x,segs[i].y);
+    } else {
+      for(var i=1;i<xs.length;i++) ctx.lineTo(xs[i],ys[i]);
+    }
+    ctx.lineTo(xs[xs.length-1],pad+iH); ctx.lineTo(xs[0],pad+iH); ctx.closePath();
+    // hex to rgba
+    var fr=parseInt(fillColor.slice(1,3),16),fg=parseInt(fillColor.slice(3,5),16),fb=parseInt(fillColor.slice(5,7),16);
+    ctx.fillStyle='rgba('+fr+','+fg+','+fb+',0.25)'; ctx.fill();
+  }
+
+  // line (grade-shaded or solid)
+  if(useGrade){
+    for(var i=0;i<xs.length-1;i++){
+      var dX=xs[i+1]-xs[i],dY=ys[i+1]-ys[i];
+      var distM=haversine(elevPts[i].lat,elevPts[i].lon,elevPts[i+1].lat,elevPts[i+1].lon);
+      var elevDiff=elevPts[i+1].ele-elevPts[i].ele;
+      var pct=distM>0?(elevDiff/distM)*100:0;
+      ctx.beginPath();
+      ctx.moveTo(xs[i],ys[i]);
+      if(useSmooth && segs && segs[i]) ctx.bezierCurveTo(segs[i].x1,segs[i].y1,segs[i].x2,segs[i].y2,segs[i].x,segs[i].y);
+      else ctx.lineTo(xs[i+1],ys[i+1]);
+      ctx.strokeStyle=gradeColor(pct); ctx.lineWidth=2; ctx.stroke();
+    }
+  } else {
+    ctx.beginPath(); ctx.moveTo(xs[0],ys[0]);
+    if(useSmooth && segs){
+      for(var i=0;i<segs.length;i++) ctx.bezierCurveTo(segs[i].x1,segs[i].y1,segs[i].x2,segs[i].y2,segs[i].x,segs[i].y);
+    } else {
+      for(var i=1;i<xs.length;i++) ctx.lineTo(xs[i],ys[i]);
+    }
+    ctx.strokeStyle=lineColor; ctx.lineWidth=1.5; ctx.stroke();
+  }
+
   ctx.fillStyle='rgba(148,163,184,0.8)'; ctx.font='10px sans-serif';
-  ctx.fillText(Math.round(maxEle)+'m',pad+2,pad+10);
-  ctx.fillText(Math.round(minEle)+'m',pad+2,pad+iH-2);
+  ctx.fillText(Math.round(d.maxEle)+'m',pad+2,pad+10);
+  ctx.fillText(Math.round(d.minEle)+'m',pad+2,pad+iH-2);
 }
  
 // ── Filename helper ───────────────────────────────────────────────────────────
@@ -925,24 +1102,47 @@ function buildRouteSVG(){
   var sO=parseFloat(document.getElementById('shadowOffset').value)||5;
   var dR=parseInt(document.getElementById('dotR').value)||8;
   var tc=document.getElementById('trackColor').value,sc=document.getElementById('shadowColor').value,dc=document.getElementById('dotColor').value;
+  var useGrad=document.getElementById('speedGradient').checked;
   var mnLa=Infinity,mxLa=-Infinity,mnLo=Infinity,mxLo=-Infinity;
   for(var i=0;i<rawPoints.length;i++){mnLa=Math.min(mnLa,rawPoints[i].lat);mxLa=Math.max(mxLa,rawPoints[i].lat);mnLo=Math.min(mnLo,rawPoints[i].lon);mxLo=Math.max(mxLo,rawPoints[i].lon);}
   var laR=mxLa-mnLa||0.001,loR=mxLo-mnLo||0.001,ar=loR/laR;
   var sw=1920,sh=sw/ar; if(sh>1080){sh=1080;sw=sh*ar;}
   var mg=Math.max(10,dR+sO+sW),vbW=sw+2*mg,vbH=sh+2*mg;
-  var mD='',sdD='';
+  var pts=[];
   for(var i=0;i<rawPoints.length;i++){
-    var x=((rawPoints[i].lon-mnLo)*(sw/loR)).toFixed(10),y=(sh-((rawPoints[i].lat-mnLa)*(sh/laR))).toFixed(10);
-    mD+=(i===0?'M ':' ')+x+','+y;
-    sdD+=(i===0?'M ':' ')+(parseFloat(x)+sO).toFixed(10)+','+(parseFloat(y)+sO).toFixed(10);
+    pts.push({
+      x:((rawPoints[i].lon-mnLo)*(sw/loR)),
+      y:(sh-((rawPoints[i].lat-mnLa)*(sh/laR)))
+    });
   }
-  var dx=(sw/2).toFixed(10),dy=(sh/2).toFixed(10);
-  return '<svg xmlns="http://www.w3.org/2000/svg" width="'+sw.toFixed(10)+'" height="'+sh.toFixed(10)+'" viewBox="-'+mg+' -'+mg+' '+vbW.toFixed(10)+' '+vbH.toFixed(10)+'">'
-    +'<path stroke="'+sc+'" stroke-width="'+sW+'" stroke-linejoin="round" fill="none" id="ShadowPath" d="'+sdD+'"/>'
-    +'<path stroke="'+tc+'" stroke-width="'+tW+'" stroke-linejoin="round" fill="none" id="MainPath" d="'+mD+'"/>'
-    +'<circle cx="'+dx+'" cy="'+dy+'" r="'+(dR+dR*0.2).toFixed(2)+'" fill="'+sc+'" id="OutlineDot"/>'
-    +'<circle cx="'+dx+'" cy="'+dy+'" r="'+dR+'" fill="'+dc+'" id="MainDot"/>'
-    +'</svg>';
+  var sdD='';
+  for(var i=0;i<pts.length;i++) sdD+=(i===0?'M ':' ')+(pts[i].x+sO).toFixed(4)+','+(pts[i].y+sO).toFixed(4);
+  var dx=(sw/2).toFixed(4),dy=(sh/2).toFixed(4);
+  var out='<svg xmlns="http://www.w3.org/2000/svg" width="'+sw.toFixed(4)+'" height="'+sh.toFixed(4)+'" viewBox="-'+mg+' -'+mg+' '+vbW.toFixed(4)+' '+vbH.toFixed(4)+'">';
+  out+='<path stroke="'+sc+'" stroke-width="'+sW+'" stroke-linejoin="round" stroke-linecap="round" fill="none" id="ShadowPath" d="'+sdD+'"/>';
+  if(useGrad){
+    var slow=hexToRgb(document.getElementById('gradSlowColor').value);
+    var mid=hexToRgb(document.getElementById('gradMidColor').value);
+    var fast=hexToRgb(document.getElementById('gradFastColor').value);
+    var maxSpd=0;
+    for(var i=0;i<speedData.length;i++) if(speedData[i].spd>maxSpd) maxSpd=speedData[i].spd;
+    out+='<g id="MainPath">';
+    for(var i=0;i<pts.length-1;i++){
+      var t=maxSpd>0?Math.min(speedData[Math.min(i,speedData.length-1)].spd/maxSpd,1):0;
+      var c=t<0.5?lerpColor(slow,mid,t*2):lerpColor(mid,fast,(t-0.5)*2);
+      var col='#'+('0'+c[0].toString(16)).slice(-2)+('0'+c[1].toString(16)).slice(-2)+('0'+c[2].toString(16)).slice(-2);
+      out+='<line x1="'+pts[i].x.toFixed(4)+'" y1="'+pts[i].y.toFixed(4)+'" x2="'+pts[i+1].x.toFixed(4)+'" y2="'+pts[i+1].y.toFixed(4)+'" stroke="'+col+'" stroke-width="'+tW+'" stroke-linecap="round"/>';
+    }
+    out+='</g>';
+  } else {
+    var mD='';
+    for(var i=0;i<pts.length;i++) mD+=(i===0?'M ':' L')+pts[i].x.toFixed(4)+','+pts[i].y.toFixed(4);
+    out+='<path stroke="'+tc+'" stroke-width="'+tW+'" stroke-linejoin="round" stroke-linecap="round" fill="none" id="MainPath" d="'+mD+'"/>';
+  }
+  out+='<circle cx="'+dx+'" cy="'+dy+'" r="'+(dR+dR*0.2).toFixed(2)+'" fill="'+sc+'" id="OutlineDot"/>';
+  out+='<circle cx="'+dx+'" cy="'+dy+'" r="'+dR+'" fill="'+dc+'" id="MainDot"/>';
+  out+='</svg>';
+  return out;
 }
  
 function buildRouteSPL(){
@@ -961,6 +1161,35 @@ function buildRouteSPL(){
   return lines.join('\n');
 }
  
+// Helper: build SVG path data (M/L or cubic bezier) from x/y arrays
+function buildPathD(xs,ys,useSmooth){
+  if(!useSmooth||xs.length<3){
+    var d='';
+    for(var i=0;i<xs.length;i++) d+=(i===0?'M ':' L')+xs[i].toFixed(4)+','+ys[i].toFixed(4);
+    return d;
+  }
+  // Catmull-Rom → cubic bezier SVG path
+  var d='M'+xs[0].toFixed(4)+','+ys[0].toFixed(4);
+  var n=xs.length,t=0.5;
+  for(var i=0;i<n-1;i++){
+    var p0x=i>0?xs[i-1]:xs[i],p0y=i>0?ys[i-1]:ys[i];
+    var p1x=xs[i],p1y=ys[i];
+    var p2x=xs[i+1],p2y=ys[i+1];
+    var p3x=i<n-2?xs[i+2]:xs[i+1],p3y=i<n-2?ys[i+2]:ys[i+1];
+    var cp1x=(p1x+(p2x-p0x)*t/3).toFixed(4),cp1y=(p1y+(p2y-p0y)*t/3).toFixed(4);
+    var cp2x=(p2x-(p3x-p1x)*t/3).toFixed(4),cp2y=(p2y-(p3y-p1y)*t/3).toFixed(4);
+    d+=' C'+cp1x+','+cp1y+' '+cp2x+','+cp2y+' '+p2x.toFixed(4)+','+p2y.toFixed(4);
+  }
+  return d;
+}
+
+// Grade color helper for SVG (returns hex string)
+function gradeHex(gradePct){
+  var t=Math.min(Math.abs(gradePct)/10,1);
+  var r=Math.round(34+(255-34)*t),g=Math.round(197+Math.round(197*(1-t)*0.3)),b=Math.round(94*(1-t));
+  return'#'+('0'+r.toString(16)).slice(-2)+('0'+g.toString(16)).slice(-2)+('0'+b.toString(16)).slice(-2);
+}
+
 function buildElevSVG(){
   var pts=rawPoints.filter(function(p){return p.ele!==null&&!isNaN(p.ele);});
   if(!pts.length)return null;
@@ -971,25 +1200,54 @@ function buildElevSVG(){
   var fc=document.getElementById('elevFillColor').value,fill=document.getElementById('elevFill').value==='1';
   var dc=document.getElementById('elevDotColor').value;
   var dR=parseInt(document.getElementById('dotR').value)||8;
+  var useSmooth=false;
+  var useGrade=document.getElementById('gradeShading').checked;
   var mnE=Infinity,mxE=-Infinity;
   for(var i=0;i<pts.length;i++){if(pts[i].ele<mnE)mnE=pts[i].ele;if(pts[i].ele>mxE)mxE=pts[i].ele;}
   var eR=mxE-mnE||1,tdK=0;
   for(var i=1;i<pts.length;i++)tdK+=haversine(pts[i-1].lat,pts[i-1].lon,pts[i].lat,pts[i].lon)/1000;
   var mg=Math.max(10,dR+dR*0.2+sO+sW),vbW=W+2*mg,vbH=H+2*mg;
-  var mD='',sdD='',tx=0;
+  var xs=[],ys=[],tx=0;
   for(var i=0;i<pts.length;i++){
-    var xi=(i>0&&tdK>0)?W*(haversine(pts[i-1].lat,pts[i-1].lon,pts[i].lat,pts[i].lon)/1000)/tdK:0;
-    tx+=xi;
-    var x=tx.toFixed(10),y=(H-((pts[i].ele-mnE)*(H/eR))).toFixed(10);
-    mD+=(i===0?'M ':' ')+x+','+y;
-    sdD+=(i===0?'M ':' ')+(tx+sO).toFixed(10)+','+(parseFloat(y)+sO).toFixed(10);
+    if(i>0&&tdK>0) tx+=W*(haversine(pts[i-1].lat,pts[i-1].lon,pts[i].lat,pts[i].lon)/1000)/tdK;
+    xs.push(tx); ys.push(H-((pts[i].ele-mnE)*(H/eR)));
   }
-  var fD=mD+' L'+W.toFixed(10)+','+H.toFixed(10)+' L0,'+H.toFixed(10)+' Z';
-  var dcx=(W/2).toFixed(10),dcy=(H/2).toFixed(10);
-  var out='<svg xmlns="http://www.w3.org/2000/svg" width="'+W+'" height="'+H+'" viewBox="-'+mg+' -'+mg+' '+vbW.toFixed(10)+' '+vbH.toFixed(10)+'">';
-  if(fill)out+='<path fill="'+fc+'" d="'+fD+'" id="ElevFill"/>';
-  out+='<path stroke="'+sc+'" stroke-width="'+sW+'" stroke-linejoin="round" fill="none" id="ShadowPath" d="'+sdD+'"/>';
-  out+='<path stroke="'+lc+'" stroke-width="'+lW+'" stroke-linejoin="round" fill="none" id="MainPath" d="'+mD+'"/>';
+  var mD=buildPathD(xs,ys,useSmooth);
+  // Shadow path (offset)
+  var sxs=xs.map(function(x){return x+sO;}),sys=ys.map(function(y){return y+sO;});
+  var sdD=buildPathD(sxs,sys,useSmooth);
+  var fD=mD+' L'+W.toFixed(4)+','+H.toFixed(4)+' L0,'+H.toFixed(4)+' Z';
+  var dcx=(W/2).toFixed(4),dcy=(H/2).toFixed(4);
+  var out='<svg xmlns="http://www.w3.org/2000/svg" width="'+W+'" height="'+H+'" viewBox="-'+mg+' -'+mg+' '+vbW.toFixed(4)+' '+vbH.toFixed(4)+'">';
+  if(fill) out+='<path fill="'+fc+'" fill-opacity="0.35" d="'+fD+'" id="ElevFill"/>';
+  out+='<path stroke="'+sc+'" stroke-width="'+sW+'" stroke-linejoin="round" stroke-linecap="round" fill="none" id="ShadowPath" d="'+sdD+'"/>';
+  if(useGrade){
+    // Per-segment colored paths
+    out+='<g id="MainPath">';
+    for(var i=0;i<pts.length-1;i++){
+      var distM=haversine(pts[i].lat,pts[i].lon,pts[i+1].lat,pts[i+1].lon);
+      var elevDiff=pts[i+1].ele-pts[i].ele;
+      var pct=distM>0?(elevDiff/distM)*100:0;
+      var color=gradeHex(pct);
+      // Single-segment path
+      var segXs=[xs[i],xs[i+1]],segYs=[ys[i],ys[i+1]];
+      // For smooth, use neighbours for control points
+      if(useSmooth){
+        var p0x=i>0?xs[i-1]:xs[i],p0y=i>0?ys[i-1]:ys[i];
+        var p3x=i<pts.length-2?xs[i+2]:xs[i+1],p3y=i<pts.length-2?ys[i+2]:ys[i+1];
+        var t=0.5;
+        var cp1x=xs[i]+(xs[i+1]-p0x)*t/3,cp1y=ys[i]+(ys[i+1]-p0y)*t/3;
+        var cp2x=xs[i+1]-(p3x-xs[i])*t/3,cp2y=ys[i+1]-(p3y-ys[i])*t/3;
+        var sd='M'+xs[i].toFixed(4)+','+ys[i].toFixed(4)+' C'+cp1x.toFixed(4)+','+cp1y.toFixed(4)+' '+cp2x.toFixed(4)+','+cp2y.toFixed(4)+' '+xs[i+1].toFixed(4)+','+ys[i+1].toFixed(4);
+      } else {
+        var sd='M'+xs[i].toFixed(4)+','+ys[i].toFixed(4)+' L'+xs[i+1].toFixed(4)+','+ys[i+1].toFixed(4);
+      }
+      out+='<path stroke="'+color+'" stroke-width="'+lW+'" stroke-linecap="round" fill="none" d="'+sd+'"/>';
+    }
+    out+='</g>';
+  } else {
+    out+='<path stroke="'+lc+'" stroke-width="'+lW+'" stroke-linejoin="round" stroke-linecap="round" fill="none" id="MainPath" d="'+mD+'"/>';
+  }
   out+='<circle cx="'+dcx+'" cy="'+dcy+'" r="'+(dR+dR*0.2).toFixed(2)+'" fill="'+sc+'" id="OutlineDot"/>';
   out+='<circle cx="'+dcx+'" cy="'+dcy+'" r="'+dR+'" fill="'+dc+'" id="MainDot"/>';
   out+='</svg>';
