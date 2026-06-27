@@ -337,6 +337,9 @@ input[type=checkbox]{accent-color:var(--accent);width:14px;height:14px;cursor:po
 </div>
 
 
+
+
+
 <!-- Downloads -->
 <div class="card">
   <div class="card-title">Download outputs</div>
@@ -679,7 +682,10 @@ function parseFIT(buffer,name){
     }
     var FIT_EPOCH=631065600;
     function tryEmit(rec,ts){
-      var lat=rec[0],lon=rec[1],alt=rec[2],spd=rec[6]!==undefined?rec[6]:rec[136],hr=rec[3];
+      var lat=rec[0],lon=rec[1];
+      var alt=rec[2]!==undefined?rec[2]:rec[78]; // fall back to enhanced_altitude (some Garmin/COROS devices only write the enhanced field)
+      var spd=rec[6]!==undefined?rec[6]:rec[73]; // fall back to enhanced_speed (same reasoning — rec[136] was an unrelated manufacturer field and has been removed)
+      var hr=rec[3];
       if(ts!==undefined&&ts!==0xFFFFFFFF&&lat!==undefined&&lat!==0x7FFFFFFF&&lon!==undefined&&lon!==0x7FFFFFFF){
         points.push({time:(ts+FIT_EPOCH)*1000,lat:lat*(180/Math.pow(2,31)),lon:lon*(180/Math.pow(2,31)),
           ele:(alt!==undefined&&alt!==0xFFFF)?(alt/5-500):null,
@@ -879,7 +885,7 @@ function smoothRolling(data, win) {
 function smooth(data, win) {
   return smoothSG(data, win);
 }
- 
+
 // ── Reprocess ─────────────────────────────────────────────────────────────────
 function reprocess(){
   var fps=parseFloat(document.getElementById('fps').value);
