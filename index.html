@@ -498,25 +498,20 @@ input[type=checkbox]{accent-color:var(--accent);width:14px;height:14px;cursor:po
       <strong style="font-size:1.05rem;color:var(--text)">3. Note your duration</strong><br>
       Before downloading, hover over the Duration stat and click copy to copy the timecode (<code>HH:MM:SS:FF</code>). You will need this when creating your Fusion compositions in DaVinci Resolve.<br><br>
  
-      <strong style="font-size:1.05rem;color:var(--text)">4. Speedometer — DaVinci Resolve setup</strong><br>
-      Step 1 — Create the Fusion composition: In DaVinci Resolve, go to the <em>Edit</em> tab. In the Media Pool, right-click and select New Fusion Composition. Paste the duration you copied from the tool, select your video's frame rate, and click Create. Drag it onto your timeline. Right-click it and select Open in Fusion Page.<br><br>
-      Step 2 — Import the .setting file: If you can't see your nodes, go to the top menu and click Nodes. Find the Speed_Overlay.setting file you downloaded and drag and drop it directly into the Fusion node graph. Connect the gray output box on the SpeedOverlay group to your MediaOut node.<br><br>
-      Step 3 — Check the animation: The ActiveSpeed keyframes are already baked into the .setting file, so no spline import is needed. Double-click the SpeedOverlay group, then double-click the CurrentSpeed node, open the Spline editor, select ActiveSpeed in the list, and click Zoom to Fit to confirm your speedometer is animated across the whole clip.<br><br>
- 
-      <strong style="font-size:1.05rem;color:var(--text)">5. Route &amp; Elevation Overlay — DaVinci Resolve setup</strong><br>
-      Route and Elevation follow the exact same steps as Speedometer and Heart Rate above — the path, the animated dot, and its motion along the path are all baked directly into the one .setting file. There's no separate SVG import, no publishing a shape, no manually linking the dot, and no spline to import.<br><br>
-      Step 1 — Create the Fusion composition: In the Media Pool, right-click → New Fusion Composition with the same duration and frame rate. Drag it onto your timeline, right-click it, and select Open in Fusion Page.<br><br>
-      Step 2 — Import the .setting file: If you can't see your nodes, go to the top menu and click Nodes. Find the Route_Overlay.setting or Elevation_Overlay.setting file you downloaded and drag and drop it directly into the Fusion node graph. Connect the gray output box on the group to your MediaOut node. Your path and dot are already drawn and already animating — nothing left to publish, link, or import.<br><br>
-      Step 3 — Check the animation: The dot's progress-along-the-path keyframes are already baked into the .setting file, so no spline import is needed. Double-click the group, then double-click the Path1Displacement node, open the Spline editor, and click Zoom to Fit to confirm the dot is animated across the whole clip.<br><br>
- 
-      <strong style="font-size:1.05rem;color:var(--text)">6. Heart Rate Overlay — DaVinci Resolve setup</strong><br>
-      (Note: The Heart Rate Overlay is not explicitly shown in the how-to video, but the process is very similar to the Speedometer setup workflow for nodes and importing splines).<br><br>
-      If your file contains heart rate data, the tool generates one file: heart_rate.setting — the BPM keyframes and the heart icon (now a native vector shape, not a PNG) are both baked directly in.<br><br>
-      Step 1 — Create the Fusion composition: In DaVinci Resolve's Edit tab, right-click the Media Pool and select New Fusion Composition. Paste your copied duration, match your video's frame rate, and click Create. Drag it onto your timeline, right-click it, and select Open in Fusion Page. (Very similar to Speedometer setup.)<br><br>
-      Step 2 — Import the .setting file: If you don't see your workspace, click Nodes in the top menu. Drag and drop your downloaded heart_rate.setting file directly into the node graph. Connect the gray output box on the heart rate node stack over to the MediaOut node. Your heart icon and BPM readout will already appear in the viewer — no separate icon file to drag in. (Very similar to Speedometer setup.)<br><br>
-      Step 3 — Check the animation: The BPM keyframes are already baked into the .setting file, so no separate spline import is needed. Click the text node labeled text 2, open the Spline editor, select HR Number in the list, and click Zoom to Fit to confirm your BPM readout is animated across the whole clip.<br><br>
+      <strong style="font-size:1.05rem;color:var(--text)">4. DaVinci Resolve setup (all overlays)</strong><br>
+      Every overlay — Speedometer, Route, Elevation, Heart Rate, Incline/Grade, and Distance/Mile Marker — imports the exact same way. Each is a single self-contained .setting file with its keyframes already baked in, so there's no separate SVG or icon to import, no shape to publish, and no spline to hand-key.<br><br>
+      Step 1 — Create the Fusion composition: In DaVinci Resolve, go to the <em>Edit</em> tab. In the Media Pool, right-click and select New Fusion Composition. Paste the duration you copied from the tool, select your video's frame rate, and click Create. Drag it onto your timeline, right-click it, and select Open in Fusion Page.<br><br>
+      Step 2 — Import the .setting file: If you can't see your nodes, go to the top menu and click Nodes. Find the .setting file you downloaded and drag and drop it directly into the Fusion node graph. Connect the gray output box on the overlay's group to your MediaOut node.<br><br>
+      Step 3 — Check the animation: Double-click into the group, then double-click the node listed below for that overlay, open the Spline editor, select the keyframed value in the list, and click Zoom to Fit to confirm it's animated across the whole clip.<br><br>
+      <span style="font-family:'DM Mono',monospace;font-size:.76rem">
+      • Speedometer — <strong>Speed_Overlay.setting</strong>, group <strong>SpeedOverlay</strong>, node <strong>CurrentSpeed</strong> → spline <strong>ActiveSpeed</strong><br>
+      • Route / Elevation — <strong>Route_Overlay.setting</strong> / <strong>Elevation_Overlay.setting</strong>, node <strong>Path1Displacement</strong><br>
+      • Heart Rate — <strong>HR_Overlay.setting</strong>, group <strong>HeartRate</strong>, node <strong>text 2</strong> → spline <strong>HR Number</strong><br>
+      • Incline / Grade — <strong>Incline_Overlay.setting</strong>, group <strong>InclineOverlay</strong>, node <strong>Text2</strong> → spline <strong>Incline</strong><br>
+      • Distance / Mile Marker — <strong>Mile_Marker_Overlay.setting</strong>, group <strong>DistanceOverlay</strong>, on its text node
+      </span><br><br>
 
-      <strong style="font-size:1.05rem;color:var(--text)">7. Tips</strong><br>
+      <strong style="font-size:1.05rem;color:var(--text)">5. Tips</strong><br>
       • All outputs share the same GPS offset and drift factor — everything stays in sync automatically.<br>
       • If your GPS file has no embedded speed data, speed is derived from position deltas — smoothing helps reduce noise.<br>
       • Re-download any output after changing settings — everything regenerates live.<br>
@@ -770,7 +765,8 @@ var SETTINGS_IDS=['fps','unit','smooth','offset','driftFactor','trackW','dotR','
   'trackColor','dotColor','shadowColor',
   'gaugeBgColor','gaugeRingColor','gaugeArcColor','gaugeNumberColor','gaugeUnitColor',
   'elevW','elevH','elevLineW','elevColor',
-  'elevFill','elevFillColor','elevDotColor','elevShadowColor','elevShadowOffset','hrColor','hrHeartColor','hrSize'];
+  'elevFill','elevFillColor','elevDotColor','elevShadowColor','elevShadowOffset','hrColor','hrHeartColor','hrSize',
+  'inclineNumberColor','inclineWedgeColor','inclineUnit','mileColor','mileLineDistColor','mileDecimals'];
 var SETTINGS_CHECKS=[];
 
 document.getElementById('btnSaveSettings').addEventListener('click',function(){
