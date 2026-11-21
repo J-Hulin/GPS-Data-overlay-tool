@@ -239,7 +239,7 @@ var SETTINGS_IDS=['fps','unit','smooth','offset','driftFactor','trackW','dotR','
   'elevW','elevH','elevLineW','elevColor',
   'elevFill','elevFillColor','elevDotColor','elevShadowColor','elevShadowOffset','hrColor','hrHeartColor','hrSize',
   'inclineNumberColor','inclineWedgeColor','inclineUnit','mileColor','mileLineDistColor','mileDecimals'];
-var SETTINGS_CHECKS=[];
+var SETTINGS_CHECKS=['elevLabels'];
 
 document.getElementById('btnSaveSettings').addEventListener('click',function(){
   var s={};
@@ -406,6 +406,29 @@ function getSpeedFromPoint(pt){
 }
  
 // ── GPX parser ────────────────────────────────────────────────────────────────
+// Some GPX exporters (e.g. Insta360 Studio) write many points per second but only
+// have 1-second timestamp resolution, so a whole run of points shares one timestamp.
+// Position-based speed then divides a tiny distance by 0 s (or by a full second for
+// just one point of the run), which reads far too slow. When most points share a
+// timestamp with their neighbour, spread each run evenly across the following second.
+function spreadDuplicateTimestamps(pts){
+  var dup=0;
+  for(var i=1;i<pts.length;i++) if(pts[i].time===pts[i-1].time) dup++;
+  if(dup<pts.length*0.5) return; // normal file (1 point per timestamp) — leave untouched
+  var a=0;
+  while(a<pts.length){
+    var b=a;
+    while(b+1<pts.length && pts[b+1].time===pts[a].time) b++;
+    var n=b-a+1;
+    if(n>1){
+      var t0=pts[a].time;
+      var span=(b+1<pts.length)?Math.min(pts[b+1].time-t0,1000):1000;
+      for(var k=0;k<n;k++) pts[a+k].time=t0+span*k/n;
+    }
+    a=b+1;
+  }
+}
+
 function parseGPX(text,name){
   try{
     var parser=new DOMParser(),doc=parser.parseFromString(text,'application/xml');
@@ -421,6 +444,7 @@ function parseGPX(text,name){
         rawPoints.push({time:t,lat:lat,lon:lon,ele:eleEl?parseFloat(eleEl.textContent):null,speed:getSpeedFromPoint(pt),hr:null});
     }
     rawPoints.sort(function(a,b){return a.time-b.time;});
+    spreadDuplicateTimestamps(rawPoints);
     if(rawPoints.length<2){setStatus('Not enough valid points','err');return;}
     totalDistM=0;
     for(var i=1;i<rawPoints.length;i++)totalDistM+=haversine(rawPoints[i-1].lat,rawPoints[i-1].lon,rawPoints[i].lat,rawPoints[i].lon);
@@ -440,7 +464,7 @@ function computeSpeeds(pts,unit){
   var result=[];
   for(var i=0;i<pts.length;i++){
     var p=pts[i],spd=(p.speed!==null&&!isNaN(p.speed))?p.speed:null;
-    if(spd===null){if(i<pts.length-1){var dt=(pts[i+1].time-p.time)/1000;spd=dt>0?haversine(p.lat,p.lon,pts[i+1].lat,pts[i+1].lon)/dt:0;}else spd=result.length?result[result.length-1].rawSpd:0;}
+    if(spd===null){if(i<pts.length-1){var dt=(pts[i+1].time-p.time)/1000;spd=dt>0?haversine(p.lat,p.lon,pts[i+1].lat,pts[i+1].lon)/dt:(result.length?result[result.length-1].rawSpd:0);}else spd=result.length?result[result.length-1].rawSpd:0;}
     result.push({time:p.time,rawSpd:spd,spd:Math.max(0,unit==='mph'?spd*2.23694:spd*3.6)});
   }
   return result;
@@ -1543,6 +1567,40 @@ function buildRouteSetting(){
 }
 
 // Elevation — ONE .setting file: optional fill + smooth main line + animated dot
+// TextPlus node for the Elevation overlay's numbers (static tick labels + live readout).
+// opts: { centerExpr, extraInputs, userControls }
+function buildTextPlusNode(name, rgb, size, cx, cy, textInputLua, pos, w, h, opts){
+  opts=opts||{};
+  var L=[];
+  L.push('\t\t\t\t'+name+' = TextPlus {');
+  L.push('\t\t\t\t\tInputs = {');
+  L.push('\t\t\t\t\t\tWidth = Input { Value = '+w+', },');
+  L.push('\t\t\t\t\t\tHeight = Input { Value = '+h+', },');
+  L.push('\t\t\t\t\t\tUseFrameFormatSettings = Input { Value = 1, },');
+  L.push('\t\t\t\t\t\t["Gamut.SLogVersion"] = Input { Value = FuID { "SLog2" }, },');
+  L.push('\t\t\t\t\t\tWrap = Input { Value = 1, },');
+  L.push('\t\t\t\t\t\tCenter = Input { Value = { '+cx.toFixed(6)+', '+cy.toFixed(6)+' }'+(opts.centerExpr?', Expression = "'+opts.centerExpr+'"':'')+', },');
+  L.push('\t\t\t\t\t\tLayoutRotation = Input { Value = 1, },');
+  L.push('\t\t\t\t\t\tTransformRotation = Input { Value = 1, },');
+  L.push('\t\t\t\t\t\tRed1 = Input { Value = '+(rgb[0]/255).toFixed(6)+', },');
+  L.push('\t\t\t\t\t\tGreen1 = Input { Value = '+(rgb[1]/255).toFixed(6)+', },');
+  L.push('\t\t\t\t\t\tBlue1 = Input { Value = '+(rgb[2]/255).toFixed(6)+', },');
+  L.push('\t\t\t\t\t\tSoftness1 = Input { Value = 1, },');
+  L.push('\t\t\t\t\t\tStyledText = '+textInputLua+',');
+  L.push('\t\t\t\t\t\tFont = Input { Value = "Open Sans", },');
+  L.push('\t\t\t\t\t\tStyle = Input { Value = "Bold", },');
+  L.push('\t\t\t\t\t\tSize = Input { Value = '+size.toFixed(6)+', },');
+  L.push('\t\t\t\t\t\tVerticalJustificationNew = Input { Value = 3, },');
+  L.push('\t\t\t\t\t\tHorizontalJustificationNew = Input { Value = 3, },');
+  L.push('\t\t\t\t\t\tAdvancedFontControls = Input { Value = 1, },');
+  if(opts.extraInputs) L.push('\t\t\t\t\t\t'+opts.extraInputs);
+  L.push('\t\t\t\t\t},');
+  L.push('\t\t\t\t\tViewInfo = OperatorInfo { Pos = { '+pos[0]+', '+pos[1]+' } },');
+  if(opts.userControls) L.push('\t\t\t\t\t'+opts.userControls);
+  L.push('\t\t\t\t},');
+  return L.join('\n');
+}
+
 function buildElevSetting(){
   var elevPts=rawPoints.filter(function(p){return p.ele!==null && !isNaN(p.ele);});
   if(!elevPts.length) return null;
@@ -1592,6 +1650,13 @@ function buildElevSetting(){
   // (PolyPath) walks it via a baked scalar displacement spline, and the dot's
   // Center reads Path1's Position output directly — no more baked X/Y keyframes.
   var dispKF=buildDisplacementKeyframes(elevPts);
+
+  // Elevation numbers (ft for MPH, m for KPH — same rule as the on-page preview)
+  var eUnit=document.getElementById('unit').value, eLbl=(eUnit==='mph'?'ft':'m');
+  function eDisp(m){ return eUnit==='mph' ? m*3.28084 : m; }
+  var showElevLabels=document.getElementById('elevLabels').checked;
+  var readoutKF=buildKeyframeList(elevPts,function(p){return eDisp(p.ele);});
+  var maxDisp=Math.ceil(eDisp(xy.maxEle)*1.1)+10;
 
   var mainShape=buildPolylineShapeNodes('MainPath','MainPathPolyline',maskPts,false,false,lw/CH,true,[0,50],CW,CH,'Publish1');
   var shadowShape=buildPolylineShapeNodes('ShadowPath','ShadowPathPolyline',shadowMaskPts,false,false,sw/CH,true,[0,150],CW,CH,undefined,'MainPath.BorderWidth*'+SHADOW_WIDTH_RATIO.toFixed(6));
@@ -1646,7 +1711,35 @@ function buildElevSetting(){
   L.push(buildDotMaskNode('MainDotMask', polyPathPositionInput('Path1'), dotDiaPx, [300,50], CW, CH));
   L.push(buildBackgroundNode('BackgroundMainDot', 'MainDotMask', dc, [400,50], undefined, CW, CH));
   chain('BackgroundMainDot');
+  // ── Elevation numbers ──────────────────────────────────────────────────────
+  // (1) min / mid / max tick labels, only when "Show elevation numbers" is ticked.
+  // (2) a live readout that rides above the dot, driven by a baked spline.
+  var LABEL_SIZE=0.026, LABEL_PX=LABEL_SIZE*CH;
+  if(showElevLabels){
+    var tickDefs=[
+      {name:'ElevLabelMax', val:xy.maxEle, py:BAND_TOP+LABEL_PX*0.6},
+      {name:'ElevLabelMid', val:(xy.maxEle+xy.minEle)/2, py:BAND_TOP+GRAPH_H/2},
+      {name:'ElevLabelMin', val:xy.minEle, py:BAND_BOTTOM-LABEL_PX*0.6}
+    ];
+    tickDefs.forEach(function(t,ti){
+      var txt=Math.round(eDisp(t.val))+' '+eLbl;
+      var wPx=txt.length*LABEL_PX*0.6; // rough text width, used only to keep the label left-aligned with the graph
+      var cxPx=OFFSET_X+MARGIN_X+10+wPx/2;
+      L.push(buildTextPlusNode(t.name,[148,163,184],LABEL_SIZE,cxPx/CW,1-(t.py/CH),
+        'Input { Value = "'+txt+'", }',[-100,250+ti*100],CW,CH));
+      chain(t.name);
+    });
+  }
+  var readoutExpr="string.format('%d "+eLbl+"', math.floor(NumberDrive + 0.5))";
+  L.push(buildTextPlusNode('ElevReadout',[255,255,255],0.034,dotCenter01[0].x,Math.min(0.97,dotCenter01[0].y+0.045),
+    'Input { Value = "0", Expression = "'+readoutExpr+'", }',[-100,550],CW,CH,{
+      centerExpr:'Point(max(0.05, min(0.95, MainDotMask.Center.X)), min(0.97, MainDotMask.Center.Y + 0.045))',
+      extraInputs:'NumberDrive = '+bezierSourceRefInput('ElevReadoutNumberDrive')+',',
+      userControls:'UserControls = ordered() { NumberDrive = { LINKS_Name = "Elevation", LINKID_DataType = "Number", INPID_InputControl = "SliderControl", INP_Integer = false, INP_MinScale = 0, INP_MaxScale = '+maxDisp+', INP_MinAllowed = -1000000, INP_MaxAllowed = 1000000, INP_SplineType = "Default", ICS_ControlPage = "Text" } }'
+    }));
+  chain('ElevReadout');
   L.push(buildBrightnessNode('BrightAdjust', lastBg, [xPos+100,100]));
+  L.push(buildBezierSplineTool('ElevReadoutNumberDrive', readoutKF, false));
   L.push('\t\t\t},');
   L.push('\t\t},');
   L.push(buildPublishPolyLineTool('Publish1', maskPts, false));
