@@ -5,11 +5,14 @@ var syncCalcResult={offset:null,drift:null};
  
 // ── Defaults for reset ────────────────────────────────────────────────────────
 var DEF_VIDEO={fps:'29.97',unit:'mph',smooth:'3',offset:'0',driftFactor:'1.0'};
-var DEF_ROUTE={trackW:'4',dotR:'8',shadowOffset:'5',trackColor:'#ff6600',dotColor:'#fca300',shadowColor:'#000000'};
+var DEF_ROUTE={trackW:'4',dotR:'8',shadowOffset:'5',trackColor:'#ff6600',dotColor:'#ef4444',shadowColor:'#000000'};
 var DEF_GAUGE={gaugeBgColor:'#000000',gaugeRingColor:'#ffffff',gaugeArcColor:'#aa0000',gaugeNumberColor:'#ffffff',gaugeUnitColor:'#6d6d7e'};
-var DEF_ELEV={elevW:'1920',elevH:'300',elevLineW:'2',elevColor:'#38bdf8',elevFill:'1',elevFillColor:'#ffffff',elevDotColor:'#38bdf8',elevShadowColor:'#000000',elevShadowOffset:'4'};
+var DEF_ELEV={elevW:'1920',elevH:'300',elevLineW:'2',elevColor:'#38bdf8',elevFill:'1',elevFillColor:'#ffffff',elevDotColor:'#ffffff',elevShadowColor:'#000000',elevShadowOffset:'4',elevLabels:true};
+var DEF_HR={hrColor:'#ef4444',hrHeartColor:'#ef4444',hrSize:'0.07'};
+var DEF_INCLINE={inclineNumberColor:'#ffffff',inclineWedgeColor:'#ff6600',inclineUnit:'pct'};
+var DEF_MILE={mileColor:'#ffffff',mileLineDistColor:'#ff6600',mileDecimals:'1'};
  
-function applyDefaults(defs){ Object.keys(defs).forEach(function(id){var el=document.getElementById(id);if(el)el.value=defs[id];}); }
+function applyDefaults(defs){ Object.keys(defs).forEach(function(id){var el=document.getElementById(id);if(!el)return;if(typeof defs[id]==='boolean')el.checked=defs[id];else el.value=defs[id];}); }
  
 // ── Theme ─────────────────────────────────────────────────────────────────────
 var themeBtn=document.getElementById('btnTheme');
@@ -196,37 +199,14 @@ document.getElementById('syncApply').addEventListener('click',function(){
  
 // ── Reset buttons ─────────────────────────────────────────────────────────────
 document.getElementById('resetVideo').addEventListener('click',function(){applyDefaults(DEF_VIDEO);if(rawPoints.length)reprocess();});
-document.getElementById('resetRoute').addEventListener('click',function(){applyDefaults(DEF_ROUTE);});
-document.getElementById('resetGauge').addEventListener('click',function(){applyDefaults(DEF_GAUGE);if(speedData.length)drawGauge();});
-document.getElementById('resetHR').addEventListener('click',function(){
-  document.getElementById('hrColor').value='#ef4444';
-  document.getElementById('hrHeartColor').value='#ef4444';
-  document.getElementById('hrSize').value='0.07';
-  if(hrData.length) drawHR();
-});
-['hrColor','hrHeartColor'].forEach(function(id){
-  var el=document.getElementById(id);
-  if(el) el.addEventListener('input',function(){if(hrData.length) drawHR();});
-});
+function resetTo(defs){ applyDefaults(defs); if(rawPoints.length) redrawAllPreviews(); }
+document.getElementById('resetRoute').addEventListener('click',function(){resetTo(DEF_ROUTE);});
+document.getElementById('resetGauge').addEventListener('click',function(){resetTo(DEF_GAUGE);});
+document.getElementById('resetHR').addEventListener('click',function(){resetTo(DEF_HR);});
+document.getElementById('resetIncline').addEventListener('click',function(){resetTo(DEF_INCLINE);});
+document.getElementById('resetMile').addEventListener('click',function(){resetTo(DEF_MILE);});
+document.getElementById('resetElev').addEventListener('click',function(){resetTo(DEF_ELEV);});
 
-document.getElementById('resetIncline').addEventListener('click',function(){
-  document.getElementById('inclineNumberColor').value='#22c55e';
-  document.getElementById('inclineWedgeColor').value='#22c55e';
-  document.getElementById('inclineUnit').value='pct';
-});
-
-document.getElementById('resetMile').addEventListener('click',function(){
-  document.getElementById('mileColor').value='#38bdf8';
-  document.getElementById('mileLineDistColor').value='#111111';
-  document.getElementById('mileDecimals').value='1';
-});
-
-document.getElementById('resetElev').addEventListener('click',function(){
-  applyDefaults(DEF_ELEV);
-});
-
-// ── Elev smooth live preview ──────────────────────────────────────────────────
-document.getElementById('elevLabels').addEventListener('change',function(){if(rawPoints.length) drawElev();});
 
 // ── Settings save / load ──────────────────────────────────────────────────────
 var SETTINGS_KEY='gpxOverlaySettings';
@@ -239,7 +219,7 @@ var SETTINGS_IDS=['fps','unit','smooth','offset','driftFactor','trackW','dotR','
   'elevW','elevH','elevLineW','elevColor',
   'elevFill','elevFillColor','elevDotColor','elevShadowColor','elevShadowOffset','hrColor','hrHeartColor','hrSize',
   'inclineNumberColor','inclineWedgeColor','inclineUnit','mileColor','mileLineDistColor','mileDecimals'];
-var SETTINGS_CHECKS=[];
+var SETTINGS_CHECKS=['elevLabels'];
 
 document.getElementById('btnSaveSettings').addEventListener('click',function(){
   var s={};
@@ -282,18 +262,21 @@ fileInput.addEventListener('change',function(){if(fileInput.files[0])handleFile(
 ['fps','unit','smooth','offset','driftFactor'].forEach(function(id){
   document.getElementById(id).addEventListener('change',function(){if(rawPoints.length)reprocess();});
 });
-// Live preview updates for style changes
-['trackColor','dotColor','shadowColor'].forEach(function(id){
-  document.getElementById(id).addEventListener('input',function(){if(rawPoints.length) drawRoute();});
-});
-['gaugeBgColor','gaugeRingColor','gaugeArcColor','gaugeNumberColor','gaugeUnitColor'].forEach(function(id){
-  document.getElementById(id).addEventListener('input',function(){if(speedData.length) drawGauge();});
-});
-['elevColor','elevFillColor','elevFill','elevDotColor'].forEach(function(id){
-  var el=document.getElementById(id);
-  if(el) el.addEventListener('input',function(){if(rawPoints.length) drawElev();});
-  if(el && el.tagName==='SELECT') el.addEventListener('change',function(){if(rawPoints.length) drawElev();});
-});
+// Live preview updates: every style control redraws its matching preview right away.
+function bindLive(ids,fn){
+  ids.forEach(function(id){
+    var el=document.getElementById(id); if(!el) return;
+    var h=function(){ if(rawPoints.length) fn(); };
+    el.addEventListener('input',h);
+    el.addEventListener('change',h);
+  });
+}
+bindLive(['trackW','dotR','shadowOffset','trackColor','dotColor','shadowColor'],function(){drawRoute();});
+bindLive(['gaugeBgColor','gaugeRingColor','gaugeArcColor','gaugeNumberColor','gaugeUnitColor'],function(){drawGauge();});
+bindLive(['elevW','elevH','elevLineW','elevColor','elevFill','elevFillColor','elevDotColor','elevShadowColor','elevShadowOffset','elevLabels'],function(){drawElev();});
+bindLive(['hrColor','hrHeartColor','hrSize'],function(){drawHR();});
+bindLive(['inclineNumberColor','inclineWedgeColor','inclineUnit'],function(){drawIncline();});
+bindLive(['mileColor','mileLineDistColor','mileDecimals'],function(){drawMile();});
  
 function setStatus(msg,cls){statusEl.textContent=msg;statusEl.className='status'+(cls?' '+cls:'');}
 function setEnabled(on){btnIds.forEach(function(id){document.getElementById(id).disabled=!on;});document.getElementById('btnDownloadAll').disabled=!on;}
@@ -406,6 +389,29 @@ function getSpeedFromPoint(pt){
 }
  
 // ── GPX parser ────────────────────────────────────────────────────────────────
+// Some GPX exporters (e.g. Insta360 Studio) write many points per second but only
+// have 1-second timestamp resolution, so a whole run of points shares one timestamp.
+// Position-based speed then divides a tiny distance by 0 s (or by a full second for
+// just one point of the run), which reads far too slow. When most points share a
+// timestamp with their neighbour, spread each run evenly across the following second.
+function spreadDuplicateTimestamps(pts){
+  var dup=0;
+  for(var i=1;i<pts.length;i++) if(pts[i].time===pts[i-1].time) dup++;
+  if(dup<pts.length*0.5) return; // normal file (1 point per timestamp) — leave untouched
+  var a=0;
+  while(a<pts.length){
+    var b=a;
+    while(b+1<pts.length && pts[b+1].time===pts[a].time) b++;
+    var n=b-a+1;
+    if(n>1){
+      var t0=pts[a].time;
+      var span=(b+1<pts.length)?Math.min(pts[b+1].time-t0,1000):1000;
+      for(var k=0;k<n;k++) pts[a+k].time=t0+span*k/n;
+    }
+    a=b+1;
+  }
+}
+
 function parseGPX(text,name){
   try{
     var parser=new DOMParser(),doc=parser.parseFromString(text,'application/xml');
@@ -421,6 +427,7 @@ function parseGPX(text,name){
         rawPoints.push({time:t,lat:lat,lon:lon,ele:eleEl?parseFloat(eleEl.textContent):null,speed:getSpeedFromPoint(pt),hr:null});
     }
     rawPoints.sort(function(a,b){return a.time-b.time;});
+    spreadDuplicateTimestamps(rawPoints);
     if(rawPoints.length<2){setStatus('Not enough valid points','err');return;}
     totalDistM=0;
     for(var i=1;i<rawPoints.length;i++)totalDistM+=haversine(rawPoints[i-1].lat,rawPoints[i-1].lon,rawPoints[i].lat,rawPoints[i].lon);
@@ -440,7 +447,7 @@ function computeSpeeds(pts,unit){
   var result=[];
   for(var i=0;i<pts.length;i++){
     var p=pts[i],spd=(p.speed!==null&&!isNaN(p.speed))?p.speed:null;
-    if(spd===null){if(i<pts.length-1){var dt=(pts[i+1].time-p.time)/1000;spd=dt>0?haversine(p.lat,p.lon,pts[i+1].lat,pts[i+1].lon)/dt:0;}else spd=result.length?result[result.length-1].rawSpd:0;}
+    if(spd===null){if(i<pts.length-1){var dt=(pts[i+1].time-p.time)/1000;spd=dt>0?haversine(p.lat,p.lon,pts[i+1].lat,pts[i+1].lon)/dt:(result.length?result[result.length-1].rawSpd:0);}else spd=result.length?result[result.length-1].rawSpd:0;}
     result.push({time:p.time,rawSpd:spd,spd:Math.max(0,unit==='mph'?spd*2.23694:spd*3.6)});
   }
   return result;
@@ -603,7 +610,7 @@ function reprocess(){
   document.getElementById('statSpd').textContent=maxSpd.toFixed(1)+' '+unit.toUpperCase();
   document.getElementById('maxSpeed').value=(Math.max(0.5,Math.ceil(maxSpd*2)/2)).toFixed(1);
   document.getElementById('statsWrap').style.display='block';
-  drawRoute(); drawSpeed(maxSpd); drawElev(); drawHR(); setEnabled(true);
+  redrawAllPreviews(); setEnabled(true);
   setStatus('Ready — '+rawPoints.length+' points · '+tc+' · '+distDisplay,'ok');
 }
  
@@ -645,112 +652,115 @@ function setupHiDPICanvas(c,W,H){
 // Redraws whichever preview canvases currently have data — bound to a debounced
 // window resize listener so the previews stay crisp and correctly proportioned
 // if the person resizes their browser window.
+function redrawAllPreviews(){
+  if(!rawPoints.length) return;
+  drawRoute(); drawGauge(); drawElev(); drawHR(); drawIncline(); drawMile();
+}
 var resizeRedrawTimer=null;
 window.addEventListener('resize',function(){
   clearTimeout(resizeRedrawTimer);
   resizeRedrawTimer=setTimeout(function(){
-    if(!rawPoints.length) return;
-    drawRoute();
-    var maxSpd=0;
-    for(var i=0;i<speedData.length;i++) if(speedData[i].spd>maxSpd) maxSpd=speedData[i].spd;
-    drawSpeed(maxSpd);
-    drawElev();
-    drawHR();
+    redrawAllPreviews();
   },150);
 });
 
 function drawRoute(){
+  if(!rawPoints.length) return;
   var c=document.getElementById('routeCanvas'),W=c.offsetWidth||620;
-  var ctx=setupHiDPICanvas(c,W,180);
-  var pts=project(rawPoints,W-20,160);
-  var xs=pts.map(function(p){return p.x;}),ys=pts.map(function(p){return p.y;});
-  var mnX=Math.min.apply(null,xs),mxX=Math.max.apply(null,xs);
-  var mnY=Math.min.apply(null,ys),mxY=Math.max.apply(null,ys);
-  var mapped=pts.map(function(p,i){return{x:10+(p.x-mnX)/(mxX-mnX||1)*(W-20),y:10+(p.y-mnY)/(mxY-mnY||1)*160};});
-  ctx.beginPath();
-  for(var i=0;i<mapped.length;i++){if(i===0)ctx.moveTo(mapped[i].x,mapped[i].y);else ctx.lineTo(mapped[i].x,mapped[i].y);}
-  ctx.strokeStyle='#f97316'; ctx.lineWidth=2; ctx.stroke();
+  var H=Math.round(W*9/16);
+  var ctx=setupHiDPICanvas(c,W,H);
+  ctx.clearRect(0,0,W,H);
+  var s=W/1920; // preview is a scaled-down 1920x1080 frame, same fit as the exported overlay
+  var tW=parseFloat(document.getElementById('trackW').value)||4;
+  var sOf=parseFloat(document.getElementById('shadowOffset').value); if(isNaN(sOf)) sOf=5;
+  var dR=parseFloat(document.getElementById('dotR').value)||8;
+  var trackC=document.getElementById('trackColor').value;
+  var dotC=document.getElementById('dotColor').value;
+  var shC=document.getElementById('shadowColor').value;
+  var mnLa=Infinity,mxLa=-Infinity,mnLo=Infinity,mxLo=-Infinity;
+  for(var i=0;i<rawPoints.length;i++){
+    var p=rawPoints[i];
+    if(p.lat<mnLa)mnLa=p.lat; if(p.lat>mxLa)mxLa=p.lat;
+    if(p.lon<mnLo)mnLo=p.lon; if(p.lon>mxLo)mxLo=p.lon;
+  }
+  var laR=(mxLa-mnLa)||0.0001, loR=(mxLo-mnLo)||0.0001;
+  var MARGIN=Math.ceil(dR*2*1.15/2)+Math.ceil(sOf)+6;
+  var boxW=1920-MARGIN*2, boxH=1080-MARGIN*2;
+  var sw=boxW,sh=sw*(laR/loR); if(sh>boxH){sh=boxH;sw=sh*(loR/laR);}
+  var padX=(1920-sw)/2, padY=(1080-sh)/2;
+  var step=Math.max(1,Math.floor(rawPoints.length/2500));
+  var pts=[];
+  for(var k=0;k<rawPoints.length;k+=step){
+    var q=rawPoints[k];
+    pts.push({x:(padX+(q.lon-mnLo)*(sw/loR))*s, y:(padY+(sh-(q.lat-mnLa)*(sh/laR)))*s});
+  }
+  function path(ox,oy){
+    ctx.beginPath();
+    for(var m=0;m<pts.length;m++){ if(m===0)ctx.moveTo(pts[m].x+ox,pts[m].y+oy); else ctx.lineTo(pts[m].x+ox,pts[m].y+oy); }
+  }
+  ctx.lineJoin='round'; ctx.lineCap='round';
+  // shadow line: shifted down-right, drawn 1.25x wider (matches exported overlay)
+  path(sOf*s,sOf*s); ctx.strokeStyle=shC; ctx.lineWidth=Math.max(1,tW*SHADOW_WIDTH_RATIO*s); ctx.stroke();
+  // main line
+  path(0,0); ctx.strokeStyle=trackC; ctx.lineWidth=Math.max(1,tW*s); ctx.stroke();
+  // dot at a representative position (25% through), outlined in the shadow color
+  var di=Math.min(pts.length-1,Math.floor(pts.length*0.25));
+  var rMain=Math.max(2.5,dR*s), rOut=Math.max(rMain+1,rMain*1.15);
+  ctx.beginPath(); ctx.arc(pts[di].x,pts[di].y,rOut,0,Math.PI*2); ctx.fillStyle=shC; ctx.fill();
+  ctx.beginPath(); ctx.arc(pts[di].x,pts[di].y,rMain,0,Math.PI*2); ctx.fillStyle=dotC; ctx.fill();
 }
  
 function drawGauge(){
   var maxSpd=parseFloat(document.getElementById('maxSpeed').value)||9;
   var unit=document.getElementById('unit').value;
   var curSpd=speedData.length?Math.min(speedData[Math.floor(speedData.length*0.25)].spd,maxSpd):maxSpd*0.4;
-  document.getElementById('gaugeWrap').style.display='block';
-  var c=document.getElementById('gaugeCanvas');
+  var gw=document.getElementById('gaugeWrap'), c=document.getElementById('gaugeCanvas');
+  if(!gw||!c) return;
+  gw.style.display='block';
   var S=200,cx=100,cy=100;
   var ctx=setupHiDPICanvas(c,S,S);
   ctx.clearRect(0,0,S,S);
- 
+
   var bgColor=document.getElementById('gaugeBgColor').value;
-  // Outer dark disc
-  ctx.beginPath(); ctx.arc(cx,cy,cx,0,Math.PI*2); ctx.fillStyle=bgColor; ctx.fill();
-  ctx.beginPath(); ctx.arc(cx,cy,cx-4,0,Math.PI*2); ctx.fillStyle=bgColor; ctx.globalAlpha=0.85; ctx.fill(); ctx.globalAlpha=1;
- 
-  var R=74, trackW=10, speedW=12;
-  var TAU=Math.PI*2;
- 
-  // Gap at the bottom. Arc starts at 7 o'clock (~210°), sweeps clockwise 300° to 5 o'clock (~150°... wait)
-  // Looking at image: gap is roughly 60° wide centered at bottom (270°)
-  // So arc runs from ~240° (8 o'clock) clockwise to ~300° (... 
-  // More carefully: red starts top-left of gap, white ends bottom-right of gap
-  // Gap center = 270° (bottom). Gap width ~50°.
-  // Start = 270 - 25 = 245° from 3-o-clock = TAU*(245/360)  → 8 o'clock area (bottom-left)
-  // End   = 270 + 25 = 295° from 3-o-clock = TAU*(295/360)  → bottom-right (~5 o'clock)  
-  // Clockwise sweep from 245° to 295° = 310° total
-  var startAng = TAU * (245/360); // bottom-left edge of gap
-  var endAng   = TAU * (295/360); // bottom-right edge of gap
-  // Clockwise from 245 → 295 going the LONG way = 360 - 50 = 310°
- 
   var ringColor=document.getElementById('gaugeRingColor').value;
   var arcColor=document.getElementById('gaugeArcColor').value;
   var numColor=document.getElementById('gaugeNumberColor').value;
   var unitColor=document.getElementById('gaugeUnitColor').value;
 
-  // White track ring — full arc clockwise from start to end (long way)
+  // Dial backdrop
+  ctx.beginPath(); ctx.arc(cx,cy,cx,0,Math.PI*2); ctx.fillStyle=bgColor; ctx.fill();
+
+  // Canvas angles: 0 = 3 o'clock, increasing CLOCKWISE (y points down), so 90 deg = straight down.
+  // Gap is centered at the bottom (90 deg) and 60 deg wide: the arc starts at bottom-left
+  // (120 deg, ~7 o'clock) and sweeps 300 deg clockwise over the top to bottom-right (60 deg, ~5 o'clock).
+  var R=76, lineW=12, TAU=Math.PI*2;
+  var startAng=TAU*(120/360);
+  var totalSweep=TAU*(300/360);
+  ctx.lineCap='round'; ctx.lineWidth=lineW;
+
+  // Ring track: full sweep
   ctx.beginPath();
-  ctx.arc(cx,cy,R,startAng,endAng,false);
-  ctx.strokeStyle=ringColor;
-  ctx.lineWidth=trackW;
-  ctx.lineCap='round';
-  ctx.stroke();
- 
-  // Speed arc — clockwise from same start, fraction of total sweep
-  var totalSweep = TAU*(310/360);
-  var frac=maxSpd>0?curSpd/maxSpd:0;
+  ctx.arc(cx,cy,R,startAng,startAng+totalSweep,false);
+  ctx.strokeStyle=ringColor; ctx.stroke();
+
+  // Active arc: same center, radius, width, start angle and direction; drawn directly on top of the ring
+  var frac=maxSpd>0?Math.max(0,Math.min(1,curSpd/maxSpd)):0;
   if(frac>0.001){
     ctx.beginPath();
     ctx.arc(cx,cy,R,startAng,startAng+totalSweep*frac,false);
-    ctx.strokeStyle=arcColor;
-    ctx.lineWidth=speedW;
-    ctx.lineCap='round';
-    ctx.stroke();
+    ctx.strokeStyle=arcColor; ctx.stroke();
   }
- 
-  // Speed number
+
+  // Speed number + unit label, centered on the dial
   ctx.fillStyle=numColor;
   ctx.font='bold 38px DM Mono,monospace';
-  ctx.textAlign='center';
-  ctx.textBaseline='middle';
+  ctx.textAlign='center'; ctx.textBaseline='middle';
   ctx.fillText(curSpd.toFixed(1),cx,cy-6);
- 
-  // Unit label
   ctx.fillStyle=unitColor;
   ctx.font='bold 12px DM Sans,sans-serif';
-  ctx.fillText(unit.toUpperCase(),cx,cy+26);
+  ctx.fillText(unit.toUpperCase(),cx,cy+24);
 }
- 
-function drawSpeed(maxSpd){
-  var c=document.getElementById('speedCanvas'),W=c.offsetWidth||620;
-  var ctx=setupHiDPICanvas(c,W,60),pad=4;
-  ctx.beginPath();
-  for(var i=0;i<speedData.length;i++){
-    var x=pad+(i/(speedData.length-1||1))*(W-pad*2),y=60-pad-(speedData[i].spd/(maxSpd||1))*(60-pad*2);
-    if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);
-  }
-  ctx.strokeStyle='#f97316'; ctx.lineWidth=1.5; ctx.stroke();
-}
- 
+
 function gradeColor(gradePct){
   // 0%=green, 5%=yellow, 10%+=red
   var t=Math.min(Math.abs(gradePct)/10,1);
@@ -759,35 +769,52 @@ function gradeColor(gradePct){
 }
 
 // Build precomputed cumulative-distance x positions (shared by drawElev and buildElevSVG)
+function drawHeartIcon(ctx,cx,cy,size,color){
+  ctx.beginPath();
+  ctx.moveTo(cx,cy+size*0.55);
+  ctx.bezierCurveTo(cx-size*1.1,cy-size*0.1,cx-size*0.55,cy-size*0.95,cx,cy-size*0.35);
+  ctx.bezierCurveTo(cx+size*0.55,cy-size*0.95,cx+size*1.1,cy-size*0.1,cx,cy+size*0.55);
+  ctx.closePath(); ctx.fillStyle=color; ctx.fill();
+}
 function drawHR(){
   var wrap=document.getElementById('hrPreviewWrap');
+  if(!wrap) return;
   if(!hrData.length){wrap.style.display='none';return;}
   wrap.style.display='block';
   var c=document.getElementById('hrCanvas'),W=c.offsetWidth||620;
-  var ctx=setupHiDPICanvas(c,W,60),pad=6,iW=W-pad*2,iH=60-pad*2;
+  var H=60, readW=96;
+  var ctx=setupHiDPICanvas(c,W,H),pad=6,iW=W-pad*2-readW,iH=H-pad*2;
+  ctx.clearRect(0,0,W,H);
   var hrs=hrData.map(function(p){return p.hr;});
   var minHR=Math.min.apply(null,hrs),maxHR=Math.max.apply(null,hrs),hrRange=maxHR-minHR||1;
   var t0=hrData[0].time,tN=hrData[hrData.length-1].time,tRange=tN-t0||1;
   var hrColor=document.getElementById('hrColor').value;
-  var r=parseInt(hrColor.slice(1,3),16),g=parseInt(hrColor.slice(3,5),16),b=parseInt(hrColor.slice(5,7),16);
+  var heartColor=document.getElementById('hrHeartColor').value;
+  var rgb=hexToRgb(hrColor),r=rgb[0],g=rgb[1],b=rgb[2];
   ctx.beginPath(); ctx.moveTo(pad,pad+iH);
   for(var i=0;i<hrData.length;i++){
-    var x=pad+(hrData[i].time-t0)/tRange*iW;
-    var y=pad+(1-(hrData[i].hr-minHR)/hrRange)*iH;
-    ctx.lineTo(x,y);
+    ctx.lineTo(pad+(hrData[i].time-t0)/tRange*iW, pad+(1-(hrData[i].hr-minHR)/hrRange)*iH);
   }
   ctx.lineTo(pad+iW,pad+iH); ctx.closePath();
   ctx.fillStyle='rgba('+r+','+g+','+b+',0.15)'; ctx.fill();
   ctx.beginPath();
-  for(var i=0;i<hrData.length;i++){
-    var x=pad+(hrData[i].time-t0)/tRange*iW;
-    var y=pad+(1-(hrData[i].hr-minHR)/hrRange)*iH;
-    if(i===0)ctx.moveTo(x,y); else ctx.lineTo(x,y);
+  for(var i2=0;i2<hrData.length;i2++){
+    var x=pad+(hrData[i2].time-t0)/tRange*iW, y=pad+(1-(hrData[i2].hr-minHR)/hrRange)*iH;
+    if(i2===0)ctx.moveTo(x,y); else ctx.lineTo(x,y);
   }
   ctx.strokeStyle=hrColor; ctx.lineWidth=1.5; ctx.stroke();
-  ctx.fillStyle='rgba('+r+','+g+','+b+',0.8)'; ctx.font='10px sans-serif';
+  ctx.fillStyle='rgba('+r+','+g+','+b+',0.8)'; ctx.font='10px sans-serif'; ctx.textAlign='left'; ctx.textBaseline='alphabetic';
   ctx.fillText(maxHR+' bpm',pad+2,pad+10);
   ctx.fillText(minHR+' bpm',pad+2,pad+iH-2);
+  // sample readout: heart icon (heart color) + number (number color, sized by Text size)
+  var sample=Math.round(hrData[Math.min(hrData.length-1,Math.floor(hrData.length*0.25))].hr);
+  var hrSize=parseFloat(document.getElementById('hrSize').value)||0.07;
+  var fpx=Math.max(12,Math.min(30,hrSize*260));
+  var rx=W-pad-readW+8;
+  drawHeartIcon(ctx,rx+12,H/2,13,heartColor);
+  ctx.fillStyle=hrColor; ctx.font='bold '+fpx+'px DM Mono,monospace'; ctx.textBaseline='middle'; ctx.textAlign='left';
+  ctx.fillText(String(sample),rx+30,H/2+1);
+  ctx.textAlign='left';
 }
 
 function buildElevXY(elevPts,iW,iH,pad){
@@ -830,65 +857,130 @@ function catmullToBezier(xs,ys){
 function drawElev(){
   var elevPts=rawPoints.filter(function(p){return p.ele!==null&&!isNaN(p.ele);});
   var wrap=document.getElementById('elevPreviewWrap');
+  if(!wrap) return;
   if(!elevPts.length){wrap.style.display='none';return;}
   wrap.style.display='block';
   var c=document.getElementById('elevCanvas'),W=c.offsetWidth||620;
-  var ctx=setupHiDPICanvas(c,W,80),pad=6,iW=W-pad*2,iH=80-pad*2;
-  var useSmooth=true; // fluid spline interpolation — no jagged staircase edges
+  var GW=parseInt(document.getElementById('elevW').value)||1920;
+  var GH=parseInt(document.getElementById('elevH').value)||300;
+  var pad=8,iW=W-pad*2;
+  var s=iW/GW; // preview is the exported graph band scaled to the card width
+  var H=Math.max(70,Math.min(220,Math.round(iW*GH/GW)+pad*2)),iH=H-pad*2;
+  var ctx=setupHiDPICanvas(c,W,H);
+  ctx.clearRect(0,0,W,H);
   var lineColor=document.getElementById('elevColor').value;
   var fillColor=document.getElementById('elevFillColor').value;
   var useFill=document.getElementById('elevFill').value==='1';
+  var dotColor=document.getElementById('elevDotColor').value;
+  var shadowColor=document.getElementById('elevShadowColor').value;
+  var lw=parseFloat(document.getElementById('elevLineW').value)||2;
+  var sOf=parseFloat(document.getElementById('elevShadowOffset').value); if(isNaN(sOf)) sOf=4;
+  var showNums=document.getElementById('elevLabels').checked;
   var d=buildElevXY(elevPts,iW,iH,pad);
   var xs=d.xs,ys=d.ys;
-  var segs=useSmooth?catmullToBezier(xs,ys):null;
-
-  // No ctx.shadowColor/shadowBlur/shadowOffsetX/shadowOffsetY are set anywhere in
-  // this function — flat, sharp rendering only, by design.
-
+  var segs=catmullToBezier(xs,ys);
+  function trace(ox,oy){
+    ctx.moveTo(xs[0]+ox,ys[0]+oy);
+    for(var i=0;i<segs.length;i++) ctx.bezierCurveTo(segs[i].x1+ox,segs[i].y1+oy,segs[i].x2+ox,segs[i].y2+oy,segs[i].x+ox,segs[i].y+oy);
+  }
+  ctx.lineJoin='round'; ctx.lineCap='round';
   // fill area
   if(useFill){
-    ctx.beginPath(); ctx.moveTo(xs[0],ys[0]);
-    if(useSmooth && segs){
-      for(var i=0;i<segs.length;i++) ctx.bezierCurveTo(segs[i].x1,segs[i].y1,segs[i].x2,segs[i].y2,segs[i].x,segs[i].y);
-    } else {
-      for(var i=1;i<xs.length;i++) ctx.lineTo(xs[i],ys[i]);
-    }
+    ctx.beginPath(); trace(0,0);
     ctx.lineTo(xs[xs.length-1],pad+iH); ctx.lineTo(xs[0],pad+iH); ctx.closePath();
-    // hex to rgba — subtle transparency, defaults to white if the picker is left at its default
-    var fr=parseInt(fillColor.slice(1,3),16),fg=parseInt(fillColor.slice(3,5),16),fb=parseInt(fillColor.slice(5,7),16);
-    ctx.fillStyle='rgba('+fr+','+fg+','+fb+',0.15)'; ctx.fill();
+    var fc=hexToRgb(fillColor);
+    ctx.fillStyle='rgba('+fc[0]+','+fc[1]+','+fc[2]+',0.15)'; ctx.fill();
   }
-
-  // line
-  ctx.beginPath(); ctx.moveTo(xs[0],ys[0]);
-  if(useSmooth && segs){
-    for(var i=0;i<segs.length;i++) ctx.bezierCurveTo(segs[i].x1,segs[i].y1,segs[i].x2,segs[i].y2,segs[i].x,segs[i].y);
-  } else {
-    for(var i=1;i<xs.length;i++) ctx.lineTo(xs[i],ys[i]);
-  }
-  ctx.strokeStyle=lineColor; ctx.lineWidth=1.5; ctx.stroke();
-
-  // Tracking dot — solid white, flat (no glow/shadow), shown at a representative
-  // "current position" a quarter of the way through the track, matching the same
-  // preview convention as the speedometer gauge.
+  // shadow line: shifted down-right, 1.25x wider (matches exported overlay)
+  ctx.beginPath(); trace(sOf*s,sOf*s); ctx.strokeStyle=shadowColor; ctx.lineWidth=Math.max(1,lw*SHADOW_WIDTH_RATIO*s); ctx.stroke();
+  // main line
+  ctx.beginPath(); trace(0,0); ctx.strokeStyle=lineColor; ctx.lineWidth=Math.max(1,lw*s); ctx.stroke();
+  // tracking dot (25% through), outlined in the shadow color
   var curIdx=Math.max(0,Math.min(xs.length-1,Math.floor(xs.length*0.25)));
   var dx=xs[curIdx],dy=ys[curIdx];
-  ctx.beginPath(); ctx.arc(dx,dy,4,0,Math.PI*2); ctx.fillStyle='#ffffff'; ctx.fill();
-
-  var unit=document.getElementById('unit').value;
-  var toDisp=function(m){ return unit==='mph' ? m*3.28084 : m; };
-  var unitLabel=unit==='mph' ? 'ft' : 'm';
-  ctx.font='bold 11px sans-serif'; ctx.fillStyle='#ffffff'; ctx.textBaseline='middle';
-  var readout=Math.round(toDisp(elevPts[curIdx].ele))+' '+unitLabel;
-  var tx=Math.min(dx+8,W-pad-ctx.measureText(readout).width);
-  ctx.fillText(readout,tx,dy-8);
-
-  ctx.fillStyle='rgba(148,163,184,0.8)'; ctx.font='10px sans-serif'; ctx.textBaseline='alphabetic';
-  if(document.getElementById('elevLabels').checked){
+  var rMain=Math.max(3,6*s*1.5), rOut=Math.max(rMain+1,rMain*1.15);
+  ctx.beginPath(); ctx.arc(dx,dy,rOut,0,Math.PI*2); ctx.fillStyle=shadowColor; ctx.fill();
+  ctx.beginPath(); ctx.arc(dx,dy,rMain,0,Math.PI*2); ctx.fillStyle=dotColor; ctx.fill();
+  // numbers (tick labels + moving readout) — only when the checkbox is on; colored by the Dot color
+  if(showNums){
+    var unit=document.getElementById('unit').value;
+    var toDisp=function(m){ return unit==='mph' ? m*3.28084 : m; };
+    var unitLabel=unit==='mph' ? 'ft' : 'm';
+    ctx.fillStyle=dotColor; ctx.textAlign='left';
+    ctx.font='bold 11px sans-serif'; ctx.textBaseline='middle';
+    var readout=Math.round(toDisp(elevPts[curIdx].ele))+' '+unitLabel;
+    var tx=Math.max(pad,Math.min(dx-ctx.measureText(readout).width/2,W-pad-ctx.measureText(readout).width));
+    var ty=dy-rOut-8; if(ty<pad+6) ty=dy+rOut+8;
+    ctx.fillText(readout,tx,ty);
+    ctx.font='10px sans-serif'; ctx.textBaseline='alphabetic';
     ctx.fillText(Math.round(toDisp(d.maxEle))+' '+unitLabel,pad+2,pad+10);
     ctx.fillText(Math.round(toDisp((d.maxEle+d.minEle)/2))+' '+unitLabel,pad+2,pad+iH/2+4);
     ctx.fillText(Math.round(toDisp(d.minEle))+' '+unitLabel,pad+2,pad+iH-2);
   }
+}
+
+function drawIncline(){
+  var wrap=document.getElementById('inclinePreviewWrap');
+  if(!wrap) return;
+  if(!gradeData.length){wrap.style.display='none';return;}
+  wrap.style.display='block';
+  var c=document.getElementById('inclineCanvas'),W=c.offsetWidth||620,H=70;
+  var ctx=setupHiDPICanvas(c,W,H);
+  ctx.clearRect(0,0,W,H);
+  var numC=document.getElementById('inclineNumberColor').value;
+  var wedgeC=document.getElementById('inclineWedgeColor').value;
+  var unit=document.getElementById('inclineUnit').value;
+  var pct=0;
+  for(var i=0;i<gradeData.length;i++) if(Math.abs(gradeData[i].pct)>Math.abs(pct)) pct=gradeData[i].pct;
+  var ang=Math.atan(pct/100);
+  var label=(unit==='deg') ? (ang*180/Math.PI).toFixed(1)+'\u00B0' : pct.toFixed(1)+'%';
+  var L=70, x0=W/2-70, yb=H-12;
+  var rise=Math.max(-(H-26),Math.min(H-26,L*Math.tan(ang)));
+  if(Math.abs(rise)<3) rise=rise<0?-3:3; // keep a sliver visible on near-flat samples
+  ctx.beginPath();
+  if(rise>=0){ ctx.moveTo(x0,yb); ctx.lineTo(x0+L,yb); ctx.lineTo(x0+L,yb-rise); }
+  else { ctx.moveTo(x0,yb); ctx.lineTo(x0+L,yb); ctx.lineTo(x0,yb+rise); }
+  ctx.closePath(); ctx.fillStyle=wedgeC; ctx.fill();
+  ctx.fillStyle=numC; ctx.font='bold 28px DM Mono,monospace'; ctx.textAlign='left'; ctx.textBaseline='middle';
+  ctx.fillText(label,x0+L+18,H/2);
+}
+
+function drawMile(){
+  var wrap=document.getElementById('milePreviewWrap');
+  if(!wrap) return;
+  if(!distData.length){wrap.style.display='none';return;}
+  wrap.style.display='block';
+  var c=document.getElementById('mileCanvas'),W=c.offsetWidth||620,H=64;
+  var ctx=setupHiDPICanvas(c,W,H);
+  ctx.clearRect(0,0,W,H);
+  var textC=document.getElementById('mileColor').value;
+  var barC=document.getElementById('mileLineDistColor').value;
+  var dec=(parseInt(document.getElementById('mileDecimals').value)===2)?2:1;
+  var unit=document.getElementById('unit').value;
+  var unitLabel=unit==='mph'?'Miles':'Kilometers';
+  var totalM=distData[distData.length-1].distM;
+  var total=unit==='mph'?totalM/1609.344:totalM/1000;
+  if(!isFinite(total)||total<=0) total=1;
+  var frac=0.4, cur=total*frac;
+  var bx=pad2(W),bw=W-bx*2,bh=30,by=(H-bh)/2;
+  function pad2(w){return Math.max(12,Math.round(w*0.04));}
+  // dark rounded backing (matches the exported bar background)
+  ctx.beginPath();
+  if(ctx.roundRect) ctx.roundRect(bx,by,bw,bh,bh/2); else ctx.rect(bx,by,bw,bh);
+  ctx.fillStyle='rgba(0,0,0,0.433)'; ctx.fill();
+  // progress bar
+  var textRoom=150, trackW=Math.max(20,bw-24-textRoom), fillW=trackW*frac;
+  ctx.beginPath();
+  if(ctx.roundRect) ctx.roundRect(bx+12,H/2-5,Math.max(2,fillW),10,5); else ctx.rect(bx+12,H/2-5,Math.max(2,fillW),10);
+  ctx.fillStyle=barC; ctx.fill();
+  // number + unit label
+  var nx=bx+12+fillW+10;
+  ctx.fillStyle=textC; ctx.textBaseline='middle'; ctx.textAlign='left';
+  ctx.font='bold 15px DM Mono,monospace';
+  var num=cur.toFixed(dec);
+  ctx.fillText(num,nx,H/2+1);
+  ctx.font='italic bold 12px DM Sans,sans-serif';
+  ctx.fillText(unitLabel,nx+ctx.measureText(num).width+ (dec===2?18:14),H/2+1);
 }
  
 // ── Filename helper ───────────────────────────────────────────────────────────
@@ -1543,6 +1635,40 @@ function buildRouteSetting(){
 }
 
 // Elevation — ONE .setting file: optional fill + smooth main line + animated dot
+// TextPlus node for the Elevation overlay's numbers (static tick labels + live readout).
+// opts: { centerExpr, extraInputs, userControls }
+function buildTextPlusNode(name, rgb, size, cx, cy, textInputLua, pos, w, h, opts){
+  opts=opts||{};
+  var L=[];
+  L.push('\t\t\t\t'+name+' = TextPlus {');
+  L.push('\t\t\t\t\tInputs = {');
+  L.push('\t\t\t\t\t\tWidth = Input { Value = '+w+', },');
+  L.push('\t\t\t\t\t\tHeight = Input { Value = '+h+', },');
+  L.push('\t\t\t\t\t\tUseFrameFormatSettings = Input { Value = 1, },');
+  L.push('\t\t\t\t\t\t["Gamut.SLogVersion"] = Input { Value = FuID { "SLog2" }, },');
+  L.push('\t\t\t\t\t\tWrap = Input { Value = 1, },');
+  L.push('\t\t\t\t\t\tCenter = Input { Value = { '+cx.toFixed(6)+', '+cy.toFixed(6)+' }'+(opts.centerExpr?', Expression = "'+opts.centerExpr+'"':'')+', },');
+  L.push('\t\t\t\t\t\tLayoutRotation = Input { Value = 1, },');
+  L.push('\t\t\t\t\t\tTransformRotation = Input { Value = 1, },');
+  L.push('\t\t\t\t\t\tRed1 = Input { Value = '+(rgb[0]/255).toFixed(6)+', },');
+  L.push('\t\t\t\t\t\tGreen1 = Input { Value = '+(rgb[1]/255).toFixed(6)+', },');
+  L.push('\t\t\t\t\t\tBlue1 = Input { Value = '+(rgb[2]/255).toFixed(6)+', },');
+  L.push('\t\t\t\t\t\tSoftness1 = Input { Value = 1, },');
+  L.push('\t\t\t\t\t\tStyledText = '+textInputLua+',');
+  L.push('\t\t\t\t\t\tFont = Input { Value = "Open Sans", },');
+  L.push('\t\t\t\t\t\tStyle = Input { Value = "Bold", },');
+  L.push('\t\t\t\t\t\tSize = Input { Value = '+size.toFixed(6)+', },');
+  L.push('\t\t\t\t\t\tVerticalJustificationNew = Input { Value = 3, },');
+  L.push('\t\t\t\t\t\tHorizontalJustificationNew = Input { Value = 3, },');
+  L.push('\t\t\t\t\t\tAdvancedFontControls = Input { Value = 1, },');
+  if(opts.extraInputs) L.push('\t\t\t\t\t\t'+opts.extraInputs);
+  L.push('\t\t\t\t\t},');
+  L.push('\t\t\t\t\tViewInfo = OperatorInfo { Pos = { '+pos[0]+', '+pos[1]+' } },');
+  if(opts.userControls) L.push('\t\t\t\t\t'+opts.userControls);
+  L.push('\t\t\t\t},');
+  return L.join('\n');
+}
+
 function buildElevSetting(){
   var elevPts=rawPoints.filter(function(p){return p.ele!==null && !isNaN(p.ele);});
   if(!elevPts.length) return null;
@@ -1592,6 +1718,14 @@ function buildElevSetting(){
   // (PolyPath) walks it via a baked scalar displacement spline, and the dot's
   // Center reads Path1's Position output directly — no more baked X/Y keyframes.
   var dispKF=buildDisplacementKeyframes(elevPts);
+
+  // Elevation numbers (ft for MPH, m for KPH — same rule as the on-page preview)
+  var eUnit=document.getElementById('unit').value, eLbl=(eUnit==='mph'?'ft':'m');
+  function eDisp(m){ return eUnit==='mph' ? m*3.28084 : m; }
+  var showElevLabels=document.getElementById('elevLabels').checked;
+  var elevNumRgb=hexToRgb(document.getElementById('elevDotColor').value); // numbers follow the Dot color
+  var readoutKF=buildKeyframeList(elevPts,function(p){return eDisp(p.ele);});
+  var maxDisp=Math.ceil(eDisp(xy.maxEle)*1.1)+10;
 
   var mainShape=buildPolylineShapeNodes('MainPath','MainPathPolyline',maskPts,false,false,lw/CH,true,[0,50],CW,CH,'Publish1');
   var shadowShape=buildPolylineShapeNodes('ShadowPath','ShadowPathPolyline',shadowMaskPts,false,false,sw/CH,true,[0,150],CW,CH,undefined,'MainPath.BorderWidth*'+SHADOW_WIDTH_RATIO.toFixed(6));
@@ -1646,7 +1780,37 @@ function buildElevSetting(){
   L.push(buildDotMaskNode('MainDotMask', polyPathPositionInput('Path1'), dotDiaPx, [300,50], CW, CH));
   L.push(buildBackgroundNode('BackgroundMainDot', 'MainDotMask', dc, [400,50], undefined, CW, CH));
   chain('BackgroundMainDot');
+  // ── Elevation numbers ──────────────────────────────────────────────────────
+  // (1) min / mid / max tick labels, only when "Show elevation numbers" is ticked.
+  // (2) a live readout that rides above the dot, driven by a baked spline.
+  var LABEL_SIZE=0.026, LABEL_PX=LABEL_SIZE*CH;
+  if(showElevLabels){
+    var tickDefs=[
+      {name:'ElevLabelMax', val:xy.maxEle, py:BAND_TOP+LABEL_PX*0.6},
+      {name:'ElevLabelMid', val:(xy.maxEle+xy.minEle)/2, py:BAND_TOP+GRAPH_H/2},
+      {name:'ElevLabelMin', val:xy.minEle, py:BAND_BOTTOM-LABEL_PX*0.6}
+    ];
+    tickDefs.forEach(function(t,ti){
+      var txt=Math.round(eDisp(t.val))+' '+eLbl;
+      var wPx=txt.length*LABEL_PX*0.6; // rough text width, used only to keep the label left-aligned with the graph
+      var cxPx=OFFSET_X+MARGIN_X+10+wPx/2;
+      L.push(buildTextPlusNode(t.name,elevNumRgb,LABEL_SIZE,cxPx/CW,1-(t.py/CH),
+        'Input { Value = "'+txt+'", }',[-100,250+ti*100],CW,CH));
+      chain(t.name);
+    });
+  }
+  if(showElevLabels){ // moving readout only exists when numbers are enabled
+  var readoutExpr="string.format('%d "+eLbl+"', math.floor(NumberDrive + 0.5))";
+  L.push(buildTextPlusNode('ElevReadout',elevNumRgb,0.034,dotCenter01[0].x,Math.min(0.97,dotCenter01[0].y+0.045),
+    'Input { Value = "0", Expression = "'+readoutExpr+'", }',[-100,550],CW,CH,{
+      centerExpr:'Point(max(0.05, min(0.95, MainDotMask.Center.X)), min(0.97, MainDotMask.Center.Y + 0.045))',
+      extraInputs:'NumberDrive = '+bezierSourceRefInput('ElevReadoutNumberDrive')+',',
+      userControls:'UserControls = ordered() { NumberDrive = { LINKS_Name = "Elevation", LINKID_DataType = "Number", INPID_InputControl = "SliderControl", INP_Integer = false, INP_MinScale = 0, INP_MaxScale = '+maxDisp+', INP_MinAllowed = -1000000, INP_MaxAllowed = 1000000, INP_SplineType = "Default", ICS_ControlPage = "Text" } }'
+    }));
+  chain('ElevReadout');
+  }
   L.push(buildBrightnessNode('BrightAdjust', lastBg, [xPos+100,100]));
+  if(showElevLabels) L.push(buildBezierSplineTool('ElevReadoutNumberDrive', readoutKF, false));
   L.push('\t\t\t},');
   L.push('\t\t},');
   L.push(buildPublishPolyLineTool('Publish1', maskPts, false));
@@ -1996,6 +2160,7 @@ function buildInclineSetting(){
 }
 
 function buildMileSetting(){
+  var mileDec=(parseInt(document.getElementById('mileDecimals').value)===2)?2:1;
   var unit=document.getElementById('unit').value;
   var unitLabel = unit==='mph' ? 'Miles' : 'Kilometers';
   // Total distance of the workout in the display unit (mi or km) — used to cap both
@@ -2080,7 +2245,7 @@ function buildMileSetting(){
   L.push('\t\t\t\t\t\tGreen1 = Input { Value = '+(mileTextRgb[1]/255).toFixed(6)+', },');
   L.push('\t\t\t\t\t\tBlue1 = Input { Value = '+(mileTextRgb[2]/255).toFixed(6)+', },');
   L.push('\t\t\t\t\t\tSoftness1 = Input { Value = 1, },');
-  L.push('\t\t\t\t\t\tStyledText = Input { Expression = "string.format(\\"%.1f\\", Rectangle3.SPLData)", },');
+  L.push('\t\t\t\t\t\tStyledText = Input { Expression = "string.format(\\"%.'+mileDec+'f\\", Rectangle3.SPLData)", },');
   L.push('\t\t\t\t\t\tFont = Input { Value = "Open Sans", },');
   L.push('\t\t\t\t\t\tStyle = Input { Value = "Bold", },');
   L.push('\t\t\t\t\t\tSize = Input { Value = 0.0472, },');

@@ -120,8 +120,11 @@
         <option value="25">25</option>
         <option value="29.97" selected>29.97</option>
         <option value="30">30</option>
+        <option value="48">48</option>
+        <option value="50">50</option>
         <option value="59.94">59.94</option>
         <option value="60">60</option>
+        <option value="120">120</option>
       </select>
     </div>
     <div class="field">
@@ -196,7 +199,7 @@
   </div>
   <div class="grid3">
     <div class="field"><label>Track color</label><input type="color" id="trackColor" value="#ff6600"></div>
-    <div class="field"><label>Dot color</label><input type="color" id="dotColor" value="#fca300"></div>
+    <div class="field"><label>Dot color</label><input type="color" id="dotColor" value="#ef4444"></div>
     <div class="field"><label>Shadow color</label><input type="color" id="shadowColor" value="#000000"></div>
   </div>
 </div>
@@ -222,7 +225,7 @@
       <div class="field"><label>Fill color</label><input type="color" id="elevFillColor" value="#ffffff"></div>
     </div>
     <div class="grid3" style="margin-top:10px">
-      <div class="field"><label>Dot color</label><input type="color" id="elevDotColor" value="#38bdf8"></div>
+      <div class="field"><label>Dot color</label><input type="color" id="elevDotColor" value="#ffffff"></div>
       <div class="field"><label>Shadow color</label><input type="color" id="elevShadowColor" value="#000000"></div>
       <div class="field"><label>Shadow offset</label><input type="number" id="elevShadowOffset" value="4" step="1" min="0"></div>
     </div>
@@ -230,7 +233,7 @@
 
       <div class="toggle-row">
         <input type="checkbox" id="elevLabels" checked>
-        <label for="elevLabels">Show elevation numbers on graph (min/max + ticks)</label>
+        <label for="elevLabels">Show elevation numbers (min/mid/max ticks + moving readout)</label>
       </div>
     </div>
   </div>
@@ -260,8 +263,8 @@
     </div>
   </div>
   <div class="grid3">
-    <div class="field"><label>Number color</label><input type="color" id="inclineNumberColor" value="#22c55e"></div>
-    <div class="field"><label>Wedge color</label><input type="color" id="inclineWedgeColor" value="#22c55e"></div>
+    <div class="field"><label>Number color</label><input type="color" id="inclineNumberColor" value="#ffffff"></div>
+    <div class="field"><label>Wedge color</label><input type="color" id="inclineWedgeColor" value="#ff6600"></div>
     <div class="field"><label>Units</label>
       <select id="inclineUnit"><option value="pct" selected>Percent (%)</option><option value="deg">Degrees (°)</option></select>
     </div>
@@ -278,8 +281,8 @@
     </div>
   </div>
   <div class="grid3">
-    <div class="field"><label>Text color</label><input type="color" id="mileColor" value="#38bdf8"></div>
-    <div class="field"><label>Line distance color</label><input type="color" id="mileLineDistColor" value="#111111"></div>
+    <div class="field"><label>Text color</label><input type="color" id="mileColor" value="#ffffff"></div>
+    <div class="field"><label>Line distance color</label><input type="color" id="mileLineDistColor" value="#ff6600"></div>
     <div class="field"><label>Decimals</label>
       <select id="mileDecimals"><option value="1" selected>1 (e.g. 3.2)</option><option value="2">2 (e.g. 3.24)</option></select>
     </div>
@@ -313,17 +316,25 @@
     <div class="preview-label">Route preview</div>
     <canvas id="routeCanvas" height="180"></canvas>
   </div>
-  <div class="preview-wrap">
-    <div class="preview-label">Speed curve</div>
-    <canvas id="speedCanvas" height="60"></canvas>
+  <div id="gaugeWrap">
+    <div class="preview-label" style="text-align:left">Speedometer preview</div>
+    <canvas id="gaugeCanvas"></canvas>
+  </div>
+  <div class="preview-wrap" id="elevPreviewWrap" style="display:none">
+    <div class="preview-label">Elevation profile</div>
+    <canvas id="elevCanvas" height="80"></canvas>
   </div>
   <div class="preview-wrap" id="hrPreviewWrap" style="display:none">
     <div class="preview-label">Heart rate</div>
     <canvas id="hrCanvas" height="60"></canvas>
   </div>
-  <div class="preview-wrap" id="elevPreviewWrap" style="display:none">
-    <div class="preview-label">Elevation profile</div>
-    <canvas id="elevCanvas" height="80"></canvas>
+  <div class="preview-wrap" id="inclinePreviewWrap" style="display:none">
+    <div class="preview-label">Incline (sample: steepest grade)</div>
+    <canvas id="inclineCanvas" height="70"></canvas>
+  </div>
+  <div class="preview-wrap" id="milePreviewWrap" style="display:none">
+    <div class="preview-label">Distance / mile marker (sample: 40% through)</div>
+    <canvas id="mileCanvas" height="64"></canvas>
   </div>
 </div>
  
