@@ -720,65 +720,47 @@ function drawGauge(){
   var S=200,cx=100,cy=100;
   var ctx=setupHiDPICanvas(c,S,S);
   ctx.clearRect(0,0,S,S);
- 
+
   var bgColor=document.getElementById('gaugeBgColor').value;
-  // Outer dark disc
-  ctx.beginPath(); ctx.arc(cx,cy,cx,0,Math.PI*2); ctx.fillStyle=bgColor; ctx.fill();
-  ctx.beginPath(); ctx.arc(cx,cy,cx-4,0,Math.PI*2); ctx.fillStyle=bgColor; ctx.globalAlpha=0.85; ctx.fill(); ctx.globalAlpha=1;
- 
-  var R=74, trackW=10, speedW=12;
-  var TAU=Math.PI*2;
- 
-  // Gap at the bottom. Arc starts at 7 o'clock (~210°), sweeps clockwise 300° to 5 o'clock (~150°... wait)
-  // Looking at image: gap is roughly 60° wide centered at bottom (270°)
-  // So arc runs from ~240° (8 o'clock) clockwise to ~300° (... 
-  // More carefully: red starts top-left of gap, white ends bottom-right of gap
-  // Gap center = 270° (bottom). Gap width ~50°.
-  // Start = 270 - 25 = 245° from 3-o-clock = TAU*(245/360)  → 8 o'clock area (bottom-left)
-  // End   = 270 + 25 = 295° from 3-o-clock = TAU*(295/360)  → bottom-right (~5 o'clock)  
-  // Clockwise sweep from 245° to 295° = 310° total
-  var startAng = TAU * (245/360); // bottom-left edge of gap
-  var endAng   = TAU * (295/360); // bottom-right edge of gap
-  // Clockwise from 245 → 295 going the LONG way = 360 - 50 = 310°
- 
   var ringColor=document.getElementById('gaugeRingColor').value;
   var arcColor=document.getElementById('gaugeArcColor').value;
   var numColor=document.getElementById('gaugeNumberColor').value;
   var unitColor=document.getElementById('gaugeUnitColor').value;
 
-  // White track ring — full arc clockwise from start to end (long way)
+  // Dial backdrop
+  ctx.beginPath(); ctx.arc(cx,cy,cx,0,Math.PI*2); ctx.fillStyle=bgColor; ctx.fill();
+
+  // Canvas angles: 0 = 3 o'clock, increasing CLOCKWISE (y points down), so 90 deg = straight down.
+  // Gap is centered at the bottom (90 deg) and 60 deg wide: the arc starts at bottom-left
+  // (120 deg, ~7 o'clock) and sweeps 300 deg clockwise over the top to bottom-right (60 deg, ~5 o'clock).
+  var R=76, lineW=12, TAU=Math.PI*2;
+  var startAng=TAU*(120/360);
+  var totalSweep=TAU*(300/360);
+  ctx.lineCap='round'; ctx.lineWidth=lineW;
+
+  // Ring track: full sweep
   ctx.beginPath();
-  ctx.arc(cx,cy,R,startAng,endAng,false);
-  ctx.strokeStyle=ringColor;
-  ctx.lineWidth=trackW;
-  ctx.lineCap='round';
-  ctx.stroke();
- 
-  // Speed arc — clockwise from same start, fraction of total sweep
-  var totalSweep = TAU*(310/360);
-  var frac=maxSpd>0?curSpd/maxSpd:0;
+  ctx.arc(cx,cy,R,startAng,startAng+totalSweep,false);
+  ctx.strokeStyle=ringColor; ctx.stroke();
+
+  // Active arc: same center, radius, width, start angle and direction; drawn directly on top of the ring
+  var frac=maxSpd>0?Math.max(0,Math.min(1,curSpd/maxSpd)):0;
   if(frac>0.001){
     ctx.beginPath();
     ctx.arc(cx,cy,R,startAng,startAng+totalSweep*frac,false);
-    ctx.strokeStyle=arcColor;
-    ctx.lineWidth=speedW;
-    ctx.lineCap='round';
-    ctx.stroke();
+    ctx.strokeStyle=arcColor; ctx.stroke();
   }
- 
-  // Speed number
+
+  // Speed number + unit label, centered on the dial
   ctx.fillStyle=numColor;
   ctx.font='bold 38px DM Mono,monospace';
-  ctx.textAlign='center';
-  ctx.textBaseline='middle';
+  ctx.textAlign='center'; ctx.textBaseline='middle';
   ctx.fillText(curSpd.toFixed(1),cx,cy-6);
- 
-  // Unit label
   ctx.fillStyle=unitColor;
   ctx.font='bold 12px DM Sans,sans-serif';
-  ctx.fillText(unit.toUpperCase(),cx,cy+26);
+  ctx.fillText(unit.toUpperCase(),cx,cy+24);
 }
- 
+
 function gradeColor(gradePct){
   // 0%=green, 5%=yellow, 10%+=red
   var t=Math.min(Math.abs(gradePct)/10,1);
